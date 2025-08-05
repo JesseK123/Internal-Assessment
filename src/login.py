@@ -188,7 +188,7 @@ def update_last_login(username):
     """Update user's last login timestamp"""
     try:
         users = db_manager.get_users_collection()
-        if users:
+        if users is not None:
             users.update_one(
                 {"username": username},
                 {
@@ -204,7 +204,7 @@ def handle_failed_login(username):
     """Handle failed login attempts and account locking"""
     try:
         users = db_manager.get_users_collection()
-        if users:
+        if users is not None:
             user = users.find_one({"username": username})
             if user:
                 failed_attempts = user.get("failed_login_attempts", 0) + 1
@@ -225,7 +225,7 @@ def is_account_locked(username):
     """Check if account is locked due to failed login attempts"""
     try:
         users = db_manager.get_users_collection()
-        if users:
+        if users is not None:
             user = users.find_one({"username": username})
             if user and user.get("account_locked_until"):
                 if datetime.utcnow() < user["account_locked_until"]:
@@ -251,7 +251,7 @@ def get_user_info(username):
     """Get user information (excluding sensitive data)"""
     try:
         users = db_manager.get_users_collection()
-        if users:
+        if users is not None:
             user = users.find_one({"username": username})
             if user:
                 # Remove sensitive information
@@ -283,7 +283,7 @@ def change_password(username, old_password, new_password):
         hashed_password, salt = hash_password(new_password)
 
         users = db_manager.get_users_collection()
-        if users:
+        if users is not None:
             users.update_one(
                 {"username": username},
                 {"$set": {"password": hashed_password, "salt": salt}},

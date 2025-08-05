@@ -2,6 +2,19 @@ import os
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import streamlit as st
+from pathlib import Path
+
+# Load environment variables from .env file
+def load_env():
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                if line.strip() and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key] = value
+
+load_env()
 
 
 class DatabaseConfig:
@@ -10,7 +23,7 @@ class DatabaseConfig:
     def __init__(self):
         self._client = None
         self._db = None
-        self.database_name = "IA"
+        self.database_name = os.getenv("DATABASE_NAME", "IA")
 
     @property
     def connection_string(self):
@@ -23,8 +36,10 @@ class DatabaseConfig:
         )
 
         if not uri:
-            # For development, you might want to use a local MongoDB
-            # uri = "mongodb://localhost:27017/"
+            # Fallback to hardcoded URI for development
+            uri = "mongodb+srv://jesseku:Fairbank@ia.yjuddkd.mongodb.net/?retryWrites=true&w=majority&appName=IA"
+        
+        if not uri:
             st.error(
                 "⚠️ MongoDB connection string not found. Please set MONGODB_URI environment variable."
             )
