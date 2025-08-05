@@ -1,36 +1,5 @@
 import streamlit as st
-import os
-from login import (verify_user, register_user, user_exists, get_user_info, 
-                   change_password, is_account_locked, handle_failed_login, 
-                   update_last_login)
-from ui import login_page, register_page, dashboard_page
-from database import initialize_database
-
-# Page config
-st.set_page_config(
-    page_title="Secure Login App", 
-    layout="centered",
-    initial_sidebar_state="collapsed",
-    page_icon="🔐"
-)
-
-# Initialize database on first run
-if "db_initialized" not in st.session_state:
-    if initialize_database():
-        st.session_state.db_initialized = True
-    else:
-        st.error("Failed to initialize database. Please check your MongoDB connection.")
-        st.stop()
-
-# Session state initialization
-if "page" not in st.session_state:
-    st.session_state.page = "login"
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "username" not in st.session_state:
-    st.sessionimport streamlit as st
-import os
-from login import (verify_user, register_user, user_exists, get_user_info, 
+from login import (verify_user, register_user, get_user_info, 
                    change_password, is_account_locked, handle_failed_login, 
                    update_last_login)
 from ui import login_page, register_page, dashboard_page
