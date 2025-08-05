@@ -29,15 +29,7 @@ class DatabaseConfig:
     def connection_string(self):
         """Get MongoDB connection string from environment"""
         # Try different environment variable names
-        uri = (
-            os.getenv("MONGODB_URI")
-            or os.getenv("MONGO_URI")
-            or os.getenv("DATABASE_URL")
-        )
-
-        if not uri:
-            # Fallback to hardcoded URI for development
-            uri = "mongodb+srv://jesseku:Fairbank@ia.yjuddkd.mongodb.net/?retryWrites=true&w=majority&appName=IA"
+        uri = (os.getenv("MONGO_URI"))
         
         if not uri:
             st.error(
