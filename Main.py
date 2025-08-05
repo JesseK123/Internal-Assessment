@@ -1,5 +1,5 @@
 import streamlit as st
-import Authentication, 
+import Authentication
 
 # Page config
 st.set_page_config(page_title="Login App", layout="centered")
