@@ -1,5 +1,5 @@
 import hashlib
-import Database
+from Database import get_users_collection, get_db
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
