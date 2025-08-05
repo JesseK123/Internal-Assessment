@@ -11,6 +11,11 @@ def get_stock_data(symbol, days):
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         data = yf.download(symbol, start=start_date, end=end_date, progress=False)
+        
+        # Flatten multi-level columns if they exist
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col[0] for col in data.columns]
+        
         return data
     except Exception as e:
         st.error(f"Failed to fetch data for {symbol}: {str(e)}")
@@ -28,6 +33,130 @@ def get_multiple_stocks_data(symbols, days):
         except Exception as e:
             continue
     return stock_data
+
+def validate_stock_symbol(symbol):
+    """Validate if a stock symbol exists by trying to fetch minimal data"""
+    try:
+        # Try to fetch just 1 day of data to validate symbol
+        data = yf.download(symbol, period="1d", progress=False)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col[0] for col in data.columns]
+        return not data.empty
+    except:
+        return False
+
+# Comprehensive stock symbols organized by categories
+STOCK_CATEGORIES = {
+    "🍎 Tech Giants": {
+        "AAPL": "Apple Inc.",
+        "GOOGL": "Alphabet Inc.",
+        "MSFT": "Microsoft Corp.",
+        "AMZN": "Amazon.com Inc.",
+        "META": "Meta Platforms Inc.",
+        "NVDA": "NVIDIA Corp.",
+        "TSLA": "Tesla Inc.",
+        "NFLX": "Netflix Inc.",
+        "ADBE": "Adobe Inc.",
+        "CRM": "Salesforce Inc.",
+        "ORCL": "Oracle Corp.",
+        "IBM": "IBM Corp.",
+        "INTC": "Intel Corp.",
+        "AMD": "Advanced Micro Devices",
+        "QCOM": "Qualcomm Inc."
+    },
+    "🏦 Financial Services": {
+        "JPM": "JPMorgan Chase",
+        "BAC": "Bank of America",
+        "WFC": "Wells Fargo",
+        "GS": "Goldman Sachs",
+        "MS": "Morgan Stanley",
+        "C": "Citigroup Inc.",
+        "V": "Visa Inc.",
+        "MA": "Mastercard Inc.",
+        "AXP": "American Express",
+        "BRK-B": "Berkshire Hathaway",
+        "USB": "U.S. Bancorp",
+        "TFC": "Truist Financial",
+        "PNC": "PNC Financial",
+        "COF": "Capital One Financial"
+    },
+    "🏥 Healthcare & Pharma": {
+        "JNJ": "Johnson & Johnson",
+        "UNH": "UnitedHealth Group",
+        "PFE": "Pfizer Inc.",
+        "ABBV": "AbbVie Inc.",
+        "TMO": "Thermo Fisher Scientific",
+        "ABT": "Abbott Laboratories",
+        "BMY": "Bristol Myers Squibb",
+        "CVS": "CVS Health Corp.",
+        "MDT": "Medtronic PLC",
+        "GILD": "Gilead Sciences",
+        "AMGN": "Amgen Inc.",
+        "DHR": "Danaher Corp.",
+        "SYK": "Stryker Corp.",
+        "ISRG": "Intuitive Surgical"
+    },
+    "🛒 Consumer & Retail": {
+        "WMT": "Walmart Inc.",
+        "HD": "Home Depot Inc.",
+        "PG": "Procter & Gamble",
+        "KO": "Coca-Cola Co.",
+        "PEP": "PepsiCo Inc.",
+        "COST": "Costco Wholesale",
+        "NKE": "Nike Inc.",
+        "MCD": "McDonald's Corp.",
+        "SBUX": "Starbucks Corp.",
+        "LOW": "Lowe's Companies",
+        "TGT": "Target Corp.",
+        "DIS": "Walt Disney Co.",
+        "CMCSA": "Comcast Corp.",
+        "VZ": "Verizon Communications"
+    },
+    "🏭 Industrial & Energy": {
+        "XOM": "Exxon Mobil Corp.",
+        "CVX": "Chevron Corp.",
+        "BA": "Boeing Co.",
+        "CAT": "Caterpillar Inc.",
+        "GE": "General Electric",
+        "MMM": "3M Co.",
+        "HON": "Honeywell International",
+        "UPS": "United Parcel Service",
+        "LMT": "Lockheed Martin",
+        "RTX": "Raytheon Technologies",
+        "DE": "Deere & Co.",
+        "FDX": "FedEx Corp.",
+        "EMR": "Emerson Electric",
+        "ETN": "Eaton Corp."
+    },
+    "🌍 International": {
+        "BABA": "Alibaba Group",
+        "TSM": "Taiwan Semiconductor",
+        "ASML": "ASML Holding NV",
+        "SAP": "SAP SE",
+        "TM": "Toyota Motor Corp.",
+        "NVO": "Novo Nordisk",
+        "NESN": "Nestle SA",
+        "UL": "Unilever PLC",
+        "SHOP": "Shopify Inc.",
+        "SNY": "Sanofi SA"
+    },
+    "🚀 Growth & Emerging": {
+        "ROKU": "Roku Inc.",
+        "SPOT": "Spotify Technology",
+        "SQ": "Block Inc.",
+        "PYPL": "PayPal Holdings",
+        "UBER": "Uber Technologies",
+        "LYFT": "Lyft Inc.",
+        "SNAP": "Snap Inc.",
+        "TWTR": "Twitter Inc.",
+        "ZOOM": "Zoom Video Communications",
+        "DOCU": "DocuSign Inc.",
+        "CRWD": "CrowdStrike Holdings",
+        "SNOW": "Snowflake Inc.",
+        "PLTR": "Palantir Technologies",
+        "RBLX": "Roblox Corp."
+    }
+}
 
 
 def login_page(
@@ -285,14 +414,33 @@ def profile_page(go_to, get_user_info, change_password):
 def dashboard_page(go_to, get_user_info, change_password):
     """Render the dashboard page with enhanced features"""
     
-    # Top navigation bar with profile button
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("📊 Dashboard")
-    with col2:
-        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-        if st.button("👤 Profile & Settings", type="secondary", use_container_width=True):
+    # Sidebar configuration
+    with st.sidebar:
+        st.header("📊 Dashboard Controls")
+        
+        # Time range selector
+        days = st.slider("Time Range (days)", min_value=7, max_value=90, value=30)
+        
+        st.divider()
+        
+        # Dashboard options
+        st.subheader("🔧 Options")
+        
+        if st.button("📈 Detailed Stock Analysis", use_container_width=True):
+            go_to("stock_analysis")
+        
+        if st.button("👤 Profile & Settings", use_container_width=True):
             go_to("profile")
+        
+        st.divider()
+        
+        # Quick stats
+        st.subheader("ℹ️ Quick Info")
+        st.caption("📅 Market data updated in real-time")
+        st.caption("🔄 Auto-refresh every 5 minutes")
+    
+    # Main dashboard title
+    st.title("📊 Dashboard")
 
     # Get user info
     user_info = get_user_info(st.session_state.username)
@@ -317,11 +465,8 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Stock Market Summary Section
     st.subheader("📈 Stock Market Dashboard")
     
-    # Time range selector
-    days = st.slider("Select time range", min_value=7, max_value=90, value=30, help="Number of past days")
-    
-    # Stock symbols
-    stock_symbols = ["AAPL", "GOOGL", "AMZN", "MSFT", "TSLA", "META"]
+    # Stock symbols for dashboard - mix from different categories
+    stock_symbols = ["AAPL", "GOOGL", "AMZN", "MSFT", "JPM", "JNJ", "TSLA", "WMT", "V"]
     
     # Fetch data for all stocks
     with st.spinner("Loading stock data..."):
@@ -338,9 +483,10 @@ def dashboard_page(go_to, get_user_info, change_password):
                         latest = data.iloc[-1]
                         previous = data.iloc[-2] if len(data) > 1 else latest
                         
-                        # Calculate change
+                        # Calculate change safely
                         change = float(latest["Close"]) - float(previous["Close"])
-                        change_pct = (change / float(previous["Close"])) * 100 if float(previous["Close"]) != 0 else 0
+                        prev_close = float(previous["Close"])
+                        change_pct = (change / prev_close) * 100 if prev_close != 0 else 0
                         
                         # Create stock card
                         with st.container():
@@ -351,7 +497,6 @@ def dashboard_page(go_to, get_user_info, change_password):
                             with col_price:
                                 st.metric("Price", f"${float(latest['Close']):.2f}")
                             with col_change:
-                                change_color = "🟢" if change >= 0 else "🔴"
                                 st.metric("Change", f"{change_pct:+.2f}%", delta=f"{change:+.2f}")
                             
                             # Mini chart
@@ -366,41 +511,193 @@ def dashboard_page(go_to, get_user_info, change_password):
                         st.error(f"Error loading {symbol}: {str(e)}")
                         st.markdown("---")
         
-        # Detailed view expander
-        with st.expander("📊 Detailed Stock Analysis", expanded=False):
-            selected_stock = st.selectbox("Select stock for detailed view", list(all_stock_data.keys()))
-            
-            if selected_stock in all_stock_data:
-                detailed_data = all_stock_data[selected_stock]
-                
-                # Detailed metrics
-                latest = detailed_data.iloc[-1]
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("Current Price", f"${float(latest['Close']):.2f}")
-                with col2:
-                    st.metric("High", f"${float(detailed_data['High'].max()):.2f}")
-                with col3:
-                    st.metric("Low", f"${float(detailed_data['Low'].min()):.2f}")
-                with col4:
-                    try:
-                        volume = int(float(latest['Volume']))
-                        st.metric("Volume", f"{volume:,}")
-                    except:
-                        st.metric("Volume", "N/A")
-                
-                # Full chart
-                st.subheader(f"{selected_stock} - {days} Day Chart")
-                st.line_chart(detailed_data['Close'])
-                
-                # Recent data
-                st.subheader("Recent Data")
-                st.dataframe(detailed_data.tail(10), use_container_width=True)
     else:
         st.warning("Unable to load stock data. Please check your internet connection.")
 
 
+def stock_analysis_page(go_to, get_user_info, change_password):
+    """Render detailed stock analysis page"""
+    
+    # Sidebar for stock analysis
+    with st.sidebar:
+        st.header("📈 Stock Analysis")
+        
+        # Stock selection by category
+        st.subheader("🌟 Select Stock")
+        
+        # Category selection
+        selected_category = st.selectbox(
+            "Choose category:", 
+            list(STOCK_CATEGORIES.keys()),
+            index=0
+        )
+        
+        # Stock selection within category
+        stocks_in_category = STOCK_CATEGORIES[selected_category]
+        stock_options = [f"{symbol} - {name}" for symbol, name in stocks_in_category.items()]
+        selected_choice = st.selectbox(
+            "Choose stock to analyze:", 
+            stock_options,
+            index=0
+        )
+        
+        # Extract symbol from selection
+        selected_stock = selected_choice.split(" - ")[0]
+        
+        # Display current selection
+        st.info(f"📊 Analyzing: **{selected_stock}**")
+        
+        st.divider()
+        
+        # Time range
+        days = st.slider("Time Range (days)", min_value=7, max_value=365, value=90)
+        
+        # Analysis options
+        st.subheader("📊 Analysis Tools")
+        show_volume = st.checkbox("Show Volume", value=True)
+        show_moving_avg = st.checkbox("Show Moving Average", value=False)
+        
+        st.divider()
+        
+        # Navigation
+        if st.button("← Back to Dashboard", use_container_width=True):
+            go_to("dashboard")
+        
+        if st.button("👤 Profile & Settings", use_container_width=True):
+            go_to("profile")
+    
+    # Main analysis content
+    st.title(f"📈 {selected_stock} - Detailed Analysis")
+    
+    # Fetch data
+    with st.spinner(f"Loading {selected_stock} data..."):
+        data = get_stock_data(selected_stock, days)
+    
+    if isinstance(data, pd.DataFrame) and not data.empty:
+        latest = data.iloc[-1]
+        previous = data.iloc[-2] if len(data) > 1 else latest
+        
+        # Calculate metrics
+        change = float(latest["Close"]) - float(previous["Close"])
+        prev_close = float(previous["Close"])
+        change_pct = (change / prev_close) * 100 if prev_close != 0 else 0
+        
+        # Key metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Current Price", f"${float(latest['Close']):.2f}", 
+                     f"{change:+.2f} ({change_pct:+.2f}%)")
+        with col2:
+            st.metric("52-Week High", f"${float(data['High'].max()):.2f}")
+        with col3:
+            st.metric("52-Week Low", f"${float(data['Low'].min()):.2f}")
+        with col4:
+            try:
+                volume = int(float(latest['Volume']))
+                st.metric("Volume", f"{volume:,}")
+            except:
+                st.metric("Volume", "N/A")
+        
+        st.divider()
+        
+        # Charts section
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader(f"📊 {selected_stock} Price Chart")
+            
+            try:
+                # Add moving average if selected
+                if 'Close' in data.columns:
+                    chart_data = pd.DataFrame({'Close': data['Close']})
+                    if show_moving_avg and len(data) >= 20:
+                        chart_data['20-Day MA'] = data['Close'].rolling(window=20).mean()
+                    
+                    st.line_chart(chart_data, height=400)
+                else:
+                    st.error("Close price data not available")
+            except Exception as e:
+                st.error(f"Error creating price chart: {str(e)}")
+        
+        with col2:
+            try:
+                if show_volume and 'Volume' in data.columns:
+                    st.subheader("📊 Volume Chart")
+                    volume_data = pd.DataFrame({'Volume': data['Volume']})
+                    st.bar_chart(volume_data, height=400)
+                elif 'High' in data.columns and 'Low' in data.columns:
+                    st.subheader("📈 High-Low Range")
+                    high_low_data = pd.DataFrame({
+                        'High': data['High'],
+                        'Low': data['Low']
+                    })
+                    st.line_chart(high_low_data, height=400)
+                else:
+                    st.error("Chart data not available")
+            except Exception as e:
+                st.error(f"Error creating secondary chart: {str(e)}")
+        
+        # Additional analysis
+        st.divider()
+        
+        # Recent performance
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📊 Recent Performance")
+            
+            # Calculate different time periods
+            periods = [1, 7, 30]
+            performance_data = []
+            
+            for period in periods:
+                if len(data) > period:
+                    old_price = float(data.iloc[-(period+1)]['Close'])
+                    current_price = float(latest['Close'])
+                    change = ((current_price - old_price) / old_price) * 100
+                    performance_data.append({
+                        'Period': f'{period} Day{"s" if period > 1 else ""}',
+                        'Change (%)': f'{change:+.2f}%'
+                    })
+            
+            if performance_data:
+                st.table(pd.DataFrame(performance_data))
+        
+        with col2:
+            st.subheader("📈 Price Statistics")
+            
+            # Statistical summary
+            stats_data = [
+                {'Metric': 'Average', 'Value': f"${data['Close'].mean():.2f}"},
+                {'Metric': 'Median', 'Value': f"${data['Close'].median():.2f}"},
+                {'Metric': 'Std Deviation', 'Value': f"${data['Close'].std():.2f}"},
+                {'Metric': 'Range', 'Value': f"${data['Close'].max() - data['Close'].min():.2f}"}
+            ]
+            st.table(pd.DataFrame(stats_data))
+        
+        # Raw data
+        st.divider()
+        st.subheader("📋 Recent Data")
+        
+        try:
+            # Format the dataframe for better display
+            display_data = data.tail(15).copy()
+            
+            # Round numeric columns if they exist
+            for col in ['Open', 'High', 'Low', 'Close']:
+                if col in display_data.columns:
+                    display_data[col] = display_data[col].round(2)
+            
+            st.dataframe(display_data, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error displaying data table: {str(e)}")
+            st.write("Raw data preview:")
+            st.write(data.head())
+        
+    else:
+        st.error(f"Unable to load data for {selected_stock}")
+        st.info("Please check your internet connection and try again.")
 
 
 def calculate_password_strength(password):
