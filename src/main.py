@@ -1,16 +1,15 @@
 import streamlit as st
-import os
-from login import (verify_user, register_user, user_exists, get_user_info, 
+from login import (verify_user, register_user, get_user_info, 
                    change_password, is_account_locked, handle_failed_login, 
                    update_last_login)
-from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page
+from ui import login_page, register_page, dashboard_page
 from database import initialize_database
 
 # Page config
 st.set_page_config(
-    page_title=os.getenv("APP_NAME", "Secure Login App"), 
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Secure Login App", 
+    layout="centered",
+    initial_sidebar_state="collapsed",
     page_icon="🔐"
 )
 
