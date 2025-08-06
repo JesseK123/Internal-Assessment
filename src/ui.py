@@ -34,130 +34,6 @@ def get_multiple_stocks_data(symbols, days):
             continue
     return stock_data
 
-def validate_stock_symbol(symbol):
-    """Validate if a stock symbol exists by trying to fetch minimal data"""
-    try:
-        # Try to fetch just 1 day of data to validate symbol
-        data = yf.download(symbol, period="1d", progress=False)
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = [col[0] for col in data.columns]
-        return not data.empty
-    except:
-        return False
-
-# Comprehensive stock symbols organized by categories
-STOCK_CATEGORIES = {
-    "🍎 Tech Giants": {
-        "AAPL": "Apple Inc.",
-        "GOOGL": "Alphabet Inc.",
-        "MSFT": "Microsoft Corp.",
-        "AMZN": "Amazon.com Inc.",
-        "META": "Meta Platforms Inc.",
-        "NVDA": "NVIDIA Corp.",
-        "TSLA": "Tesla Inc.",
-        "NFLX": "Netflix Inc.",
-        "ADBE": "Adobe Inc.",
-        "CRM": "Salesforce Inc.",
-        "ORCL": "Oracle Corp.",
-        "IBM": "IBM Corp.",
-        "INTC": "Intel Corp.",
-        "AMD": "Advanced Micro Devices",
-        "QCOM": "Qualcomm Inc."
-    },
-    "🏦 Financial Services": {
-        "JPM": "JPMorgan Chase",
-        "BAC": "Bank of America",
-        "WFC": "Wells Fargo",
-        "GS": "Goldman Sachs",
-        "MS": "Morgan Stanley",
-        "C": "Citigroup Inc.",
-        "V": "Visa Inc.",
-        "MA": "Mastercard Inc.",
-        "AXP": "American Express",
-        "BRK-B": "Berkshire Hathaway",
-        "USB": "U.S. Bancorp",
-        "TFC": "Truist Financial",
-        "PNC": "PNC Financial",
-        "COF": "Capital One Financial"
-    },
-    "🏥 Healthcare & Pharma": {
-        "JNJ": "Johnson & Johnson",
-        "UNH": "UnitedHealth Group",
-        "PFE": "Pfizer Inc.",
-        "ABBV": "AbbVie Inc.",
-        "TMO": "Thermo Fisher Scientific",
-        "ABT": "Abbott Laboratories",
-        "BMY": "Bristol Myers Squibb",
-        "CVS": "CVS Health Corp.",
-        "MDT": "Medtronic PLC",
-        "GILD": "Gilead Sciences",
-        "AMGN": "Amgen Inc.",
-        "DHR": "Danaher Corp.",
-        "SYK": "Stryker Corp.",
-        "ISRG": "Intuitive Surgical"
-    },
-    "🛒 Consumer & Retail": {
-        "WMT": "Walmart Inc.",
-        "HD": "Home Depot Inc.",
-        "PG": "Procter & Gamble",
-        "KO": "Coca-Cola Co.",
-        "PEP": "PepsiCo Inc.",
-        "COST": "Costco Wholesale",
-        "NKE": "Nike Inc.",
-        "MCD": "McDonald's Corp.",
-        "SBUX": "Starbucks Corp.",
-        "LOW": "Lowe's Companies",
-        "TGT": "Target Corp.",
-        "DIS": "Walt Disney Co.",
-        "CMCSA": "Comcast Corp.",
-        "VZ": "Verizon Communications"
-    },
-    "🏭 Industrial & Energy": {
-        "XOM": "Exxon Mobil Corp.",
-        "CVX": "Chevron Corp.",
-        "BA": "Boeing Co.",
-        "CAT": "Caterpillar Inc.",
-        "GE": "General Electric",
-        "MMM": "3M Co.",
-        "HON": "Honeywell International",
-        "UPS": "United Parcel Service",
-        "LMT": "Lockheed Martin",
-        "RTX": "Raytheon Technologies",
-        "DE": "Deere & Co.",
-        "FDX": "FedEx Corp.",
-        "EMR": "Emerson Electric",
-        "ETN": "Eaton Corp."
-    },
-    "🌍 International": {
-        "BABA": "Alibaba Group",
-        "TSM": "Taiwan Semiconductor",
-        "ASML": "ASML Holding NV",
-        "SAP": "SAP SE",
-        "TM": "Toyota Motor Corp.",
-        "NVO": "Novo Nordisk",
-        "NESN": "Nestle SA",
-        "UL": "Unilever PLC",
-        "SHOP": "Shopify Inc.",
-        "SNY": "Sanofi SA"
-    },
-    "🚀 Growth & Emerging": {
-        "ROKU": "Roku Inc.",
-        "SPOT": "Spotify Technology",
-        "SQ": "Block Inc.",
-        "PYPL": "PayPal Holdings",
-        "UBER": "Uber Technologies",
-        "LYFT": "Lyft Inc.",
-        "SNAP": "Snap Inc.",
-        "TWTR": "Twitter Inc.",
-        "ZOOM": "Zoom Video Communications",
-        "DOCU": "DocuSign Inc.",
-        "CRWD": "CrowdStrike Holdings",
-        "SNOW": "Snowflake Inc.",
-        "PLTR": "Palantir Technologies",
-        "RBLX": "Roblox Corp."
-    }
-}
-
 
 def login_page(
     go_to, verify_user, is_account_locked, handle_failed_login, update_last_login
@@ -416,7 +292,7 @@ def dashboard_page(go_to, get_user_info, change_password):
     
     # Sidebar configuration
     with st.sidebar:
-        st.header("📊 Dashboard Controls")
+        st.header("📊 Menu")
         
         # Time range selector
         days = st.slider("Time Range (days)", min_value=7, max_value=90, value=30)
@@ -465,8 +341,8 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Stock Market Summary Section
     st.subheader("📈 Stock Market Dashboard")
     
-    # Stock symbols for dashboard - mix from different categories
-    stock_symbols = ["AAPL", "GOOGL", "AMZN", "MSFT", "JPM", "JNJ", "TSLA", "WMT", "V"]
+    # Stock symbols
+    stock_symbols = ["AAPL", "GOOGL", "AMZN", "MSFT", "TSLA", "META"]
     
     # Fetch data for all stocks
     with st.spinner("Loading stock data..."):
@@ -522,32 +398,9 @@ def stock_analysis_page(go_to, get_user_info, change_password):
     with st.sidebar:
         st.header("📈 Stock Analysis")
         
-        # Stock selection by category
-        st.subheader("🌟 Select Stock")
-        
-        # Category selection
-        selected_category = st.selectbox(
-            "Choose category:", 
-            list(STOCK_CATEGORIES.keys()),
-            index=0
-        )
-        
-        # Stock selection within category
-        stocks_in_category = STOCK_CATEGORIES[selected_category]
-        stock_options = [f"{symbol} - {name}" for symbol, name in stocks_in_category.items()]
-        selected_choice = st.selectbox(
-            "Choose stock to analyze:", 
-            stock_options,
-            index=0
-        )
-        
-        # Extract symbol from selection
-        selected_stock = selected_choice.split(" - ")[0]
-        
-        # Display current selection
-        st.info(f"📊 Analyzing: **{selected_stock}**")
-        
-        st.divider()
+        # Stock selection
+        stock_symbols = ["AAPL", "GOOGL", "AMZN", "MSFT", "TSLA", "META"]
+        selected_stock = st.selectbox("Select Stock", stock_symbols)
         
         # Time range
         days = st.slider("Time Range (days)", min_value=7, max_value=365, value=90)
