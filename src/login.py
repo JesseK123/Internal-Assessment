@@ -5,6 +5,10 @@ import secrets
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, DuplicateKeyError
 import streamlit as st
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class DatabaseManager:
@@ -19,10 +23,10 @@ class DatabaseManager:
         if self._client is None:
             try:
                 # Get connection string from environment variable
-                uri = os.getenv("MONGODB_URI")
+                uri = os.getenv("MONGO_URI")
                 if not uri:
                     st.error(
-                        "MongoDB connection string not found. Please set MONGODB_URI environment variable."
+                        "MongoDB connection string not found. Please set MONGO_URI environment variable."
                     )
                     return None
 
@@ -48,6 +52,11 @@ class DatabaseManager:
     def get_dashboard_collection(self):
         if self.db is not None:
             return self.db["dashboard_data"]
+        return None
+    
+    def get_portfolios_collection(self):
+        if self.db is not None:
+            return self.db["portfolios"]
         return None
 
 
@@ -294,3 +303,183 @@ def change_password(username, old_password, new_password):
     except Exception as e:
         st.error(f"Error changing password: {str(e)}")
         return False, "Password change failed"
+
+
+# Portfolio management functions
+def create_portfolio(username, portfolio_data):
+    """Create a new portfolio for a user"""
+    try:
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return False, "Database connection failed"
+        
+        # Check if portfolio name already exists for this user
+        existing = portfolios.find_one({
+            "user_id": username,
+            "portfolio_name": portfolio_data["name"]
+        })
+        
+        if existing:
+            return False, "Portfolio name already exists"
+        
+        # Create portfolio document
+        portfolio_doc = {
+            "user_id": username,
+            "portfolio_name": portfolio_data["name"],
+            "budget": portfolio_data["budget"],
+            "countries": portfolio_data["countries"],
+            "stocks": portfolio_data.get("stocks", []),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "total_value": 0,
+            "is_active": True
+        }
+        
+        result = portfolios.insert_one(portfolio_doc)
+        if result.inserted_id:
+            return True, "Portfolio created successfully"
+        else:
+            return False, "Failed to create portfolio"
+            
+    except Exception as e:
+        return False, f"Error creating portfolio: {str(e)}"
+
+
+def get_user_portfolios(username):
+    """Get all portfolios for a user"""
+    try:
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return []
+        
+        user_portfolios = list(portfolios.find({
+            "user_id": username,
+            "is_active": True
+        }).sort("created_at", -1))
+        
+        return user_portfolios
+        
+    except Exception as e:
+        st.error(f"Error fetching portfolios: {str(e)}")
+        return []
+
+
+def get_portfolio_by_id(portfolio_id):
+    """Get a specific portfolio by its ID"""
+    try:
+        from bson import ObjectId
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return None
+        
+        portfolio = portfolios.find_one({"_id": ObjectId(portfolio_id)})
+        return portfolio
+        
+    except Exception as e:
+        st.error(f"Error fetching portfolio: {str(e)}")
+        return None
+
+
+def update_portfolio(portfolio_id, update_data):
+    """Update a portfolio"""
+    try:
+        from bson import ObjectId
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return False, "Database connection failed"
+        
+        update_data["updated_at"] = datetime.utcnow()
+        
+        result = portfolios.update_one(
+            {"_id": ObjectId(portfolio_id)},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            return True, "Portfolio updated successfully"
+        else:
+            return False, "No changes made to portfolio"
+            
+    except Exception as e:
+        return False, f"Error updating portfolio: {str(e)}"
+
+
+def delete_portfolio(portfolio_id, username):
+    """Delete a portfolio (soft delete by setting is_active to False)"""
+    try:
+        from bson import ObjectId
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return False, "Database connection failed"
+        
+        result = portfolios.update_one(
+            {"_id": ObjectId(portfolio_id), "user_id": username},
+            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+        )
+        
+        if result.modified_count > 0:
+            return True, "Portfolio deleted successfully"
+        else:
+            return False, "Portfolio not found or already deleted"
+            
+    except Exception as e:
+        return False, f"Error deleting portfolio: {str(e)}"
+
+
+def add_stock_to_portfolio(portfolio_id, stock_data):
+    """Add a stock to a portfolio"""
+    try:
+        from bson import ObjectId
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return False, "Database connection failed"
+        
+        # Check if stock already exists in portfolio
+        portfolio = portfolios.find_one({"_id": ObjectId(portfolio_id)})
+        if portfolio:
+            existing_stocks = portfolio.get("stocks", [])
+            for stock in existing_stocks:
+                if stock["symbol"] == stock_data["symbol"]:
+                    return False, f"Stock {stock_data['symbol']} already exists in portfolio"
+        
+        # Add stock to portfolio
+        result = portfolios.update_one(
+            {"_id": ObjectId(portfolio_id)},
+            {
+                "$push": {"stocks": stock_data},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+        
+        if result.modified_count > 0:
+            return True, f"Stock {stock_data['symbol']} added to portfolio"
+        else:
+            return False, "Failed to add stock to portfolio"
+            
+    except Exception as e:
+        return False, f"Error adding stock: {str(e)}"
+
+
+def remove_stock_from_portfolio(portfolio_id, stock_symbol):
+    """Remove a stock from a portfolio"""
+    try:
+        from bson import ObjectId
+        portfolios = db_manager.get_portfolios_collection()
+        if portfolios is None:
+            return False, "Database connection failed"
+        
+        result = portfolios.update_one(
+            {"_id": ObjectId(portfolio_id)},
+            {
+                "$pull": {"stocks": {"symbol": stock_symbol}},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+        
+        if result.modified_count > 0:
+            return True, f"Stock {stock_symbol} removed from portfolio"
+        else:
+            return False, "Stock not found in portfolio"
+            
+    except Exception as e:
+        return False, f"Error removing stock: {str(e)}"
