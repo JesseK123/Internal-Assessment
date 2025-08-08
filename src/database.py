@@ -2,19 +2,11 @@ import os
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import streamlit as st
+from dotenv import load_dotenv
 from pathlib import Path
 
 # Load environment variables from .env file
-def load_env():
-    env_path = Path(__file__).parent.parent / ".env"
-    if env_path.exists():
-        with open(env_path) as f:
-            for line in f:
-                if line.strip() and not line.startswith('#'):
-                    key, value = line.strip().split('=', 1)
-                    os.environ[key] = value
-
-load_env()
+load_dotenv()
 
 
 class DatabaseConfig:
@@ -33,7 +25,7 @@ class DatabaseConfig:
         
         if not uri:
             st.error(
-                "⚠️ MongoDB connection string not found. Please set MONGODB_URI environment variable."
+                "⚠️ MongoDB connection string not found. Please set MONGO_URI environment variable."
             )
             return None
 
@@ -112,7 +104,7 @@ class DatabaseConfig:
         """Create database indexes for better performance"""
         try:
             db = self.get_database()
-            if db:
+            if db is not None:
                 # Create indexes for users collection
                 users = db["users"]
                 users.create_index("username", unique=True)
@@ -124,6 +116,12 @@ class DatabaseConfig:
                 dashboard = db["dashboard_data"]
                 dashboard.create_index("user_id")
                 dashboard.create_index("created_at")
+                
+                # Create indexes for portfolios collection
+                portfolios = db["portfolios"]
+                portfolios.create_index("user_id")
+                portfolios.create_index("created_at")
+                portfolios.create_index("portfolio_name")
 
                 st.info("📊 Database indexes created successfully")
                 return True

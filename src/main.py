@@ -1,8 +1,10 @@
 import streamlit as st
 from login import (verify_user, register_user, get_user_info, 
                    change_password, is_account_locked, handle_failed_login, 
-                   update_last_login)
-from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page
+                   update_last_login, create_portfolio, get_user_portfolios, 
+                   get_portfolio_by_id, update_portfolio, delete_portfolio, 
+                   add_stock_to_portfolio, remove_stock_from_portfolio)
+from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page
 from database import initialize_database
 
 # Page config
@@ -67,6 +69,18 @@ def main():
             profile_page(go_to, get_user_info, change_password)
         elif st.session_state.page == "stock_analysis":
             stock_analysis_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "portfolios":
+            portfolios_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "create_portfolio":
+            create_portfolio_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "my_stocks":
+            my_stocks_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "stock_search":
+            stock_search_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "edit_portfolio":
+            edit_portfolio_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "portfolio_details":
+            portfolio_details_page(go_to, get_user_info, change_password)
         else:
             dashboard_page(go_to, get_user_info, change_password)
     elif st.session_state.page == "register":
