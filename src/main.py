@@ -2,7 +2,7 @@ import streamlit as st
 from login import (verify_user, register_user, get_user_info, 
                    change_password, is_account_locked, handle_failed_login, 
                    update_last_login)
-from ui import login_page, register_page, dashboard_page
+from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page
 from database import initialize_database
 
 # Page config
