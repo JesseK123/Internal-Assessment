@@ -56,6 +56,18 @@ def main():
         border-radius: 15px;
         font-size: 12px;
     }
+    .positive-percentage {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .negative-percentage {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .neutral-percentage {
+        color: #6c757d;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
     

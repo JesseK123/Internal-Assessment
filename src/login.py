@@ -326,7 +326,6 @@ def create_portfolio(username, portfolio_data):
         portfolio_doc = {
             "user_id": username,
             "portfolio_name": portfolio_data["name"],
-            "budget": portfolio_data["budget"],
             "countries": portfolio_data["countries"],
             "stocks": portfolio_data.get("stocks", []),
             "created_at": datetime.utcnow(),
