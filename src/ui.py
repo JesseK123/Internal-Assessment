@@ -2,6 +2,10 @@ import streamlit as st
 from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
+import time
+import requests
+from urllib.parse import quote
+import re
 
 def format_percentage_with_color(percentage):
     """Format percentage with color coding - green for positive, red for negative"""
@@ -11,6 +15,72 @@ def format_percentage_with_color(percentage):
         return f'<span class="negative-percentage">{percentage:+.2f}%</span>'
     else:
         return f'<span class="neutral-percentage">{percentage:.2f}%</span>'
+
+@st.dialog("🗑️ Delete Portfolio")
+def show_delete_confirmation_popup():
+    """Show portfolio deletion confirmation popup"""
+    portfolio_id = st.session_state.get('confirm_delete_portfolio')
+    portfolio_name = st.session_state.get('confirm_delete_name', 'Unknown Portfolio')
+    
+    st.warning(f"⚠️ **Confirm Deletion**")
+    st.write(f"Are you sure you want to delete the portfolio **{portfolio_name}**?")
+    st.write("**This action cannot be undone.**")
+    st.write("")
+    
+    col_confirm, col_cancel = st.columns(2)
+    
+    with col_confirm:
+        if st.button("🗑️ Yes, Delete", type="primary", use_container_width=True):
+            try:
+                from login import delete_portfolio
+                success, message = delete_portfolio(portfolio_id, st.session_state.username)
+                
+                if success:
+                    st.success(f"✅ Portfolio '{portfolio_name}' deleted successfully!")
+                    # Clear session state
+                    del st.session_state.confirm_delete_portfolio
+                    del st.session_state.confirm_delete_name
+                    time.sleep(2)  # Show success message briefly
+                    st.rerun()
+                else:
+                    st.error(f"❌ Failed to delete portfolio: {message}")
+                    
+            except Exception as e:
+                st.error(f"❌ Error deleting portfolio: {str(e)}")
+    
+    with col_cancel:
+        if st.button("❌ Cancel", use_container_width=True):
+            # Clear confirmation state and close popup
+            del st.session_state.confirm_delete_portfolio
+            del st.session_state.confirm_delete_name
+            st.rerun()
+
+def get_company_news_link(symbol):
+    """Get Google News search link for a company"""
+    try:
+        # Get company name from ticker if possible
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            company_name = info.get('longName', symbol)
+        except:
+            company_name = symbol
+        
+        # Create Google News search URL with company name and stock symbol
+        search_query = f"{company_name} {symbol} stock"
+        encoded_query = quote(search_query)
+        google_news_url = f"https://news.google.com/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+        
+        return {
+            'company_name': company_name,
+            'symbol': symbol,
+            'search_query': search_query,
+            'news_url': google_news_url
+        }
+        
+    except Exception as e:
+        st.error(f"Error generating news link: {str(e)}")
+        return None
 
 # Stock symbols by country
 STOCK_SYMBOLS_BY_COUNTRY = {
@@ -186,10 +256,8 @@ def get_multiple_stocks_data(symbols, days):
     return stock_data
 
 
-def login_page(
-    go_to, verify_user, is_account_locked, handle_failed_login, update_last_login
-):
-    """Render the login page with enhanced security"""
+def login_page(go_to, verify_user, update_last_login):
+    """Render the login page"""
     st.title("🔐 Login")
 
     username = st.text_input("Username")
@@ -202,20 +270,13 @@ def login_page(
             if not username or not password:
                 st.error("Please enter both username and password")
             else:
-                # Check if account is locked
-                locked, unlock_time = is_account_locked(username)
-                if locked:
-                    st.error(
-                        f"Account locked due to failed login attempts. Try again after {unlock_time.strftime('%H:%M:%S')}"
-                    )
-                elif verify_user(username, password):
+                if verify_user(username, password):
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     update_last_login(username)
                     st.success("Login successful!")
                     go_to("dashboard")
                 else:
-                    handle_failed_login(username)
                     st.error("Invalid credentials")
 
     # Password strength indicator
@@ -522,8 +583,6 @@ def dashboard_page(go_to, get_user_info, change_password):
         days_since = (
             datetime.utcnow() - user_info.get("created_at", datetime.utcnow())
         ).days
-        st.metric("Member for", f"{days_since} days")
-
     st.divider()
 
     # Quick Actions Section at the top
@@ -582,13 +641,16 @@ def dashboard_page(go_to, get_user_info, change_password):
                 total_invested += purchase_price * stock.get('shares', 1)
         
         # Display summary metrics
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Portfolios", total_portfolios)
         with col2:
             st.metric("Total Stocks", total_stocks)
         with col3:
             st.metric("Total Invested", f"${total_invested:,.2f}")
+        with col4:
+            avg_portfolio_value = total_invested / total_portfolios if total_portfolios > 0 else 0
+            st.metric("Avg Portfolio", f"${avg_portfolio_value:,.2f}")
         
         st.divider()
         
@@ -645,20 +707,57 @@ def dashboard_page(go_to, get_user_info, change_password):
     
     # Stock symbols organized by country
     stock_data_by_country = {
-        "🇺🇸 United States": ["AAPL", "GOOGL", "AMZN", "MSFT", "TSLA", "META"],
-        "🇬🇧 United Kingdom": ["LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP"],
-        "🇦🇺 Australia": ["CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX"],
-        "🇭🇰 Hong Kong": ["0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK"],
-        "🇨🇳 China": ["BABA", "JD", "BIDU", "NIO", "PDD", "BILI"]
+        "🇺🇸 United States": [
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
+            "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
+            "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
+            "NFLX", "CRM", "XOM", "LLY", "ABT", "ORCL", "ACN", "NVS", "CMCSA", "DIS",
+            "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
+            "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
+        ],
+        "🇬🇧 United Kingdom": [
+            "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
+            "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
+            "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
+            "ADM.L", "ANTO.L", "AUTO.L", "AV.L", "BA.L", "BNZL.L", "BRBY.L", "CCL.L", "CPG.L", "CRDS.L",
+            "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
+            "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
+        ],
+        "🇦🇺 Australia": [
+            "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
+            "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
+            "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
+            "BRG.AX", "BSL.AX", "BWP.AX", "CAR.AX", "CCP.AX", "CHC.AX", "CPU.AX", "CTX.AX", "CWN.AX", "DMP.AX",
+            "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
+            "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
+        ],
+        "🇭🇰 Hong Kong": [
+            "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
+            "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
+            "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
+            "0291.HK", "0293.HK", "0322.HK", "0386.HK", "0390.HK", "0392.HK", "0688.HK", "0762.HK", "0823.HK", "0857.HK",
+            "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
+            "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
+        ],
+        "🇨🇳 China": [
+            "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
+            "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
+            "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
+            "STO", "BEST", "QFIN", "LKNCY", "ZLAB", "CAAS", "CBPO", "CANG", "CAN", "CARS",
+            "CADC", "CXDC", "DQ", "EH", "FENG", "GSMG", "HEAR", "HCM", "HIMX", "HUIZ",
+            "JOBS", "LAIX", "LX", "NAAS", "NIU", "QTT", "RERE", "SOHU", "TOUR", "WDH"
+        ]
     }
     
-    # Fetch data for all countries (using default 30-day period)
-    days = 30  # Default time range
+    # Fetch data for all countries (using 1-year period)
+    days = 365  # 1 year
     all_countries_data = {}
     
     for country, symbols in stock_data_by_country.items():
-        with st.spinner(f"Loading {country} stock data..."):
-            country_data = get_multiple_stocks_data(symbols, days)
+        # Only take first 6 stocks for dashboard display
+        top_symbols = symbols[:6]
+        with st.spinner(f"Loading {country} stock data (1-year history)..."):
+            country_data = get_multiple_stocks_data(top_symbols, days)
             if country_data:
                 all_countries_data[country] = country_data
     
@@ -671,8 +770,8 @@ def dashboard_page(go_to, get_user_info, change_password):
                 st.write(f"### {country} Stock Market")
                 
                 if country_data:
-                    # Create stock cards in a grid for this country
-                    cols = st.columns(3)  # 3 columns for the grid
+                    # Create stock cards in a grid for this country (top 6 stocks)
+                    cols = st.columns(3)  # 3 columns for the grid (6 stocks = 2 rows)
                     
                     for idx, (symbol, data) in enumerate(country_data.items()):
                         with cols[idx % 3]:  # Distribute across 3 columns
@@ -690,16 +789,12 @@ def dashboard_page(go_to, get_user_info, change_password):
                                     with st.container():
                                         st.markdown(f"**{symbol}**")
                                         
-                                        # Price and change
-                                        col_price, col_change = st.columns([1, 1])
-                                        with col_price:
-                                            st.metric("Price", f"${float(latest['Close']):.2f}")
-                                        with col_change:
-                                            st.metric("Change", f"{change_pct:+.2f}%", delta=f"{change:+.2f}")
+                                        # Price with percentage change and delta
+                                        st.metric("Price", f"${float(latest['Close']):.2f}", delta=f"{change_pct:+.2f}%")
                                         
-                                        # Mini chart
+                                        # Mini chart - 1 year historical data
                                         if 'Close' in data.columns and len(data) > 1:
-                                            chart_data = data['Close'].tail(min(30, len(data)))
+                                            chart_data = data['Close'].tail(365).round(2)  # Show only last 365 days, rounded to 2dp
                                             st.line_chart(chart_data, height=150)
                                         
                                         st.markdown("---")
@@ -724,29 +819,60 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         
         # Stock search
         st.subheader("🔍 Stock Search")
-        stock_input = st.text_input(
-            "Enter Stock Symbol", 
+        
+        # Create consolidated list of all stocks from all countries
+        all_stock_symbols = []
+        for country, symbols in STOCK_SYMBOLS_BY_COUNTRY.items():
+            all_stock_symbols.extend(symbols)
+        
+        # Remove duplicates and sort
+        all_stock_symbols = sorted(list(set(all_stock_symbols)))
+        
+        # Search input
+        search_query = st.text_input(
+            "Search Stock Symbol",
             value="AAPL",
-            placeholder="e.g., AAPL, GOOGL, TSLA",
-            help="Enter any stock symbol (US: AAPL, UK: LLOY.L, Australia: CBA.AX, Hong Kong: 0700.HK)"
+            placeholder="Type to search (e.g., AAPL, GOOGL, TSLA...)",
+            help="Search from all available stocks across US, UK, Australia, Hong Kong, and China markets"
         )
         
-        # Popular stocks for quick selection
-        st.write("**Quick Select:**")
-        popular_stocks = ["AAPL", "GOOGL", "AMZN", "MSFT", "TSLA", "META", "NVDA", "BRK-B"]
+        # Filter stocks based on search query
+        if search_query:
+            filtered_stocks = [stock for stock in all_stock_symbols if search_query.upper() in stock.upper()]
+            
+            # Show filtered results
+            if filtered_stocks:
+                if len(filtered_stocks) > 10:
+                    st.caption(f"Found {len(filtered_stocks)} matches. Showing first 10:")
+                    display_stocks = filtered_stocks[:10]
+                else:
+                    st.caption(f"Found {len(filtered_stocks)} matches:")
+                    display_stocks = filtered_stocks
+                
+                # Create clickable buttons for search results
+                cols = st.columns(2)
+                for idx, stock in enumerate(display_stocks):
+                    with cols[idx % 2]:
+                        if st.button(stock, key=f"search_{stock}", use_container_width=True):
+                            st.session_state.selected_stock_symbol = stock
+                            search_query = stock
+                            st.rerun()
+                
+                # Use the first match or exact match as selected stock
+                selected_stock = search_query.upper() if search_query.upper() in [s.upper() for s in all_stock_symbols] else filtered_stocks[0]
+            else:
+                st.warning("No stocks found matching your search. Try different keywords.")
+                selected_stock = "AAPL"  # Default fallback
+        else:
+            selected_stock = "AAPL"  # Default when no search
         
-        cols = st.columns(4)
-        for i, symbol in enumerate(popular_stocks):
-            with cols[i % 4]:
-                if st.button(symbol, key=f"quick_{symbol}", use_container_width=True):
-                    stock_input = symbol
-                    st.rerun()
+        # Use session state to persist selection if available
+        if hasattr(st.session_state, 'selected_stock_symbol'):
+            selected_stock = st.session_state.selected_stock_symbol
         
-        # Use the input stock symbol (convert to uppercase)
-        selected_stock = stock_input.upper().strip() if stock_input else "AAPL"
-        
-        # Time range
-        days = st.slider("Time Range (days)", min_value=7, max_value=365, value=90)
+        # Time range - Fixed for detailed analysis
+        st.info("📊 **Analysis Period:** 10 Years (3,650 days)")
+        days = 90  # Keep for any remaining sidebar functionality
         
         # Analysis options
         st.subheader("📊 Analysis Tools")
@@ -768,9 +894,10 @@ def stock_analysis_page(go_to, get_user_info, change_password):
     # Main analysis content
     st.title(f"📈 {selected_stock} - Detailed Analysis")
     
-    # Fetch data
-    with st.spinner(f"Loading {selected_stock} data..."):
-        data = get_stock_data(selected_stock, days)
+    # Fetch data - Fixed 10-year period for detailed analysis
+    analysis_days = 3650  # 10 years (10 * 365)
+    with st.spinner(f"Loading {selected_stock} data (10-year analysis)..."):
+        data = get_stock_data(selected_stock, analysis_days)
     
     if isinstance(data, pd.DataFrame) and not data.empty:
         latest = data.iloc[-1]
@@ -802,7 +929,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Charts section
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([3, 2])
         
         with col1:
             st.subheader(f"📊 {selected_stock} Price Chart")
@@ -842,7 +969,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Recent performance
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([2, 3])
         
         with col1:
             st.subheader("📊 Recent Performance")
@@ -876,24 +1003,28 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             ]
             st.table(pd.DataFrame(stats_data))
         
-        # Raw data
+        # Recent Company News
         st.divider()
-        st.subheader("📋 Recent Data")
+        st.subheader("📰 Company News")
         
-        try:
-            # Format the dataframe for better display
-            display_data = data.tail(15).copy()
+        news_info = get_company_news_link(selected_stock)
+        
+        if news_info:
+            st.write(f"**Company:** {news_info['company_name']}")
+            st.write(f"**Stock Symbol:** {news_info['symbol']}")
+            st.write(f"**Search Query:** {news_info['search_query']}")
             
-            # Round numeric columns if they exist
-            for col in ['Open', 'High', 'Low', 'Close']:
-                if col in display_data.columns:
-                    display_data[col] = display_data[col].round(2)
+            st.link_button(
+                f"🔗 View {news_info['company_name']} News on Google", 
+                news_info['news_url'],
+                use_container_width=True
+            )
             
-            st.dataframe(display_data, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error displaying data table: {str(e)}")
-            st.write("Raw data preview:")
-            st.write(data.head())
+            st.caption("Click the button above to view the latest news about this company on Google News.")
+        else:
+            st.info(f"📰 Unable to generate news link for {selected_stock}")
+            st.caption("There might be an issue fetching company information.")
+        
         
     else:
         st.error(f"Unable to load data for {selected_stock}")
@@ -990,14 +1121,16 @@ def portfolios_page(go_to, get_user_info, change_password):
         else:
             total_change_pct = 0
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Portfolio Value", f"${total_value:,.2f}", f"{total_change:+.2f} ({total_change_pct:+.1f}%)")
+            st.metric("Total Portfolio Value", f"${total_value:,.2f}", f"{total_change:+.2f} ({total_change_pct:+.2f}%)")
         with col2:
             st.metric("Number of Portfolios", len(sample_portfolios))
         with col3:
             best_performer = max(sample_portfolios, key=lambda p: p["change_pct"])
-            st.metric("Best Performer", best_performer["name"], f"{best_performer['change_pct']:+.1f}%")
+            st.metric("Best Performer", best_performer["name"], f"{best_performer['change_pct']:+.2f}%")
+        with col4:
+            st.metric("Active Portfolios", len([p for p in sample_portfolios if p.get('value', 0) > 0]))
     else:
         st.info("📝 No portfolios found. Create your first portfolio to get started!")
     
@@ -1010,7 +1143,7 @@ def portfolios_page(go_to, get_user_info, change_password):
         # Portfolio cards
         for portfolio in sample_portfolios:
             with st.container():
-                col1, col2 = st.columns([2, 2])
+                col1, col2 = st.columns([3, 2])
                 
                 with col1:
                     st.markdown(f"### {portfolio['name']}")
@@ -1022,7 +1155,7 @@ def portfolios_page(go_to, get_user_info, change_password):
                     st.metric(
                         "Current Value",
                         f"${portfolio['value']:.2f}",
-                        f"{portfolio['change']:+.2f} ({portfolio['change_pct']:+.1f}%)"
+                        f"{portfolio['change']:+.2f} ({portfolio['change_pct']:+.2f}%)"
                     )
                 
                 # Portfolio actions
@@ -1053,7 +1186,9 @@ def portfolios_page(go_to, get_user_info, change_password):
                 
                 with col_delete:
                     if st.button(f"🗑️ Delete", key=f"delete_{portfolio['name']}", type="secondary"):
-                        st.warning(f"Delete {portfolio['name']}? This action cannot be undone.")
+                        st.session_state.confirm_delete_portfolio = portfolio['_id']
+                        st.session_state.confirm_delete_name = portfolio['name']
+                        st.rerun()
                 
                 # Share functionality (appears when share button is clicked)
                 if st.session_state.get('share_portfolio') and st.session_state.share_portfolio['_id'] == portfolio['_id']:
@@ -1118,6 +1253,10 @@ def portfolios_page(go_to, get_user_info, change_password):
                                 st.info("Others can use this link to create a similar portfolio with the same stocks.")
                 
                 st.markdown("---")
+    
+    # Portfolio deletion confirmation popup
+    if st.session_state.get('confirm_delete_portfolio'):
+        show_delete_confirmation_popup()
     
     # Create new portfolio form
     if st.session_state.get("show_create_form", False):
@@ -1371,7 +1510,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
         # Display stocks in list format
         for idx, stock in enumerate(stocks):
             with st.container():
-                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+                col1, col2, col3, col4, col5 = st.columns([3, 1.5, 1, 1.5, 1])
                 
                 with col1:
                     st.write(f"**{stock['symbol']}**")
@@ -1514,8 +1653,8 @@ def show_stock_historical_data(symbol, name):
                     
                     # Returns statistics
                     # Returns statistics in vertical layout
-                    st.metric("Avg Daily Return", f"{returns.mean() * 100:.3f}%")
-                    st.metric("Volatility", f"{returns.std() * 100:.3f}%")
+                    st.metric("Avg Daily Return", f"{returns.mean() * 100:.2f}%")
+                    st.metric("Volatility", f"{returns.std() * 100:.2f}%")
                     st.metric("Best Day", f"{returns.max() * 100:.2f}%")
                     st.metric("Worst Day", f"{returns.min() * 100:.2f}%")
                 
@@ -1647,7 +1786,7 @@ def stock_search_page(go_to, get_user_info, change_password):
         # Display search results
         for stock in filtered_stocks:
             with st.container():
-                col1, col2, col3, col4, col5, col6 = st.columns([2, 1.5, 1, 1, 1.5, 1])
+                col1, col2, col3, col4, col5, col6 = st.columns([3, 2, 1.5, 1.5, 2, 1])
                 
                 with col1:
                     st.write(f"**{stock['symbol']}**")
@@ -1880,7 +2019,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         
         for idx, stock in enumerate(stocks):
             with st.container():
-                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+                col1, col2, col3, col4, col5 = st.columns([3, 1.5, 1, 1.5, 1])
                 
                 with col1:
                     st.write(f"**{stock['symbol']}**")
@@ -2119,14 +2258,14 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         
         stock_details.append({
             'Symbol': symbol,
-            'Name': stock.get('name', symbol),
-            'Shares': shares,
-            'Purchase Price': f"${purchase_price:.2f}",
-            'Current Price': current_price_display,
+            'Company Name': stock.get('name', symbol),
+            'Number of Shares': shares,
+            'Average Purchase Price': f"${purchase_price:.2f}",
             'Purchase Value': f"${purchase_value:.2f}",
+            'Current Average Price': current_price_display,
             'Current Value': f"${current_value:.2f}",
-            'Gain/Loss ($)': f"${gain_loss:+.2f}",
-            'Gain/Loss (%)': format_percentage_with_color(gain_loss_pct)
+            'Percentage Change': format_percentage_with_color(gain_loss_pct),
+            'Value Change': f"${gain_loss:+.2f}"
         })
     
     # Display as interactive table
@@ -2141,7 +2280,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         st.subheader("📈 Individual Stock Performance")
         
         # Create columns for stock cards
-        cols = st.columns(2)
+        cols = st.columns(3)
         for idx, stock in enumerate(stocks):
             with cols[idx % 2]:
                 symbol = stock['symbol']

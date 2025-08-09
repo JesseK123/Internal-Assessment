@@ -179,8 +179,6 @@ def register_user(username, password, email):
             "created_at": datetime.utcnow(),
             "last_login": None,
             "is_active": True,
-            "failed_login_attempts": 0,
-            "account_locked_until": None,
         }
 
         users.insert_one(user_doc)
@@ -200,10 +198,7 @@ def update_last_login(username):
         if users is not None:
             users.update_one(
                 {"username": username},
-                {
-                    "$set": {"last_login": datetime.utcnow()},
-                    "$unset": {"failed_login_attempts": "", "account_locked_until": ""},
-                },
+                {"$set": {"last_login": datetime.utcnow()}},
             )
     except Exception as e:
         st.error(f"Error updating login time: {str(e)}")
