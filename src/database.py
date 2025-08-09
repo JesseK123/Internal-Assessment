@@ -31,7 +31,6 @@ class DatabaseConfig:
 
         # Remove password from logs (security)
         safe_uri = uri.replace(uri.split("://")[1].split("@")[0], "***:***")
-        st.info(f"Connecting to: {safe_uri}")
 
         return uri
 
@@ -55,7 +54,6 @@ class DatabaseConfig:
                 self._client.server_info()
                 self._db = self._client[self.database_name]
 
-                st.success("✅ Database connected successfully")
                 return True
 
             except ConnectionFailure as e:
@@ -123,7 +121,6 @@ class DatabaseConfig:
                 portfolios.create_index("created_at")
                 portfolios.create_index("portfolio_name")
 
-                st.info("📊 Database indexes created successfully")
                 return True
         except Exception as e:
             st.warning(f"Could not create indexes: {str(e)}")
