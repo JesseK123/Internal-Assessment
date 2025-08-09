@@ -1,9 +1,8 @@
 import streamlit as st
 from login import (verify_user, register_user, get_user_info, 
-                   change_password, is_account_locked, handle_failed_login, 
-                   update_last_login, create_portfolio, get_user_portfolios, 
-                   get_portfolio_by_id, update_portfolio, delete_portfolio, 
-                   add_stock_to_portfolio, remove_stock_from_portfolio)
+                   change_password, update_last_login, create_portfolio, 
+                   get_user_portfolios, get_portfolio_by_id, update_portfolio, 
+                   delete_portfolio, add_stock_to_portfolio, remove_stock_from_portfolio)
 from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page
 from database import initialize_database
 
@@ -12,8 +11,9 @@ st.set_page_config(
     page_title="Secure Login App", 
     layout="centered",
     initial_sidebar_state="collapsed",
-    page_icon="🔐"
+    page_icon="📊"
 )
+
 
 # Initialize database on first run
 if "db_initialized" not in st.session_state:
@@ -98,13 +98,7 @@ def main():
     elif st.session_state.page == "register":
         register_page(go_to, register_user)
     else:
-        # login_page(go_to, verify_user, is_account_locked, handle_failed_login, update_last_login)
-        st.title("🔐 Login Page Disabled")
-        st.info("Login page is temporarily disabled for development.")
-        if st.button("Go to Dashboard (Test)"):
-            st.session_state.logged_in = True
-            st.session_state.username = "test_user"
-            go_to("dashboard")
+        login_page(go_to, verify_user, update_last_login)
 
 if __name__ == "__main__":
     main()
