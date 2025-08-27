@@ -1140,8 +1140,23 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("📈 My Portfolios")
     
     if sample_portfolios:
+        # Bubble sort portfolios by value (highest first)
+        def bubble_sort_portfolios_by_value(portfolios):
+            """Sort portfolios by value using bubble sort (highest to lowest)"""
+            n = len(portfolios)
+            for i in range(n):
+                for j in range(0, n - i - 1):
+                    # Compare adjacent portfolios by value (descending order)
+                    if portfolios[j]['value'] < portfolios[j + 1]['value']:
+                        # Swap portfolios
+                        portfolios[j], portfolios[j + 1] = portfolios[j + 1], portfolios[j]
+            return portfolios
+        
+        # Sort portfolios by value (highest first)
+        sorted_portfolios = bubble_sort_portfolios_by_value(sample_portfolios.copy())
+        
         # Portfolio cards
-        for portfolio in sample_portfolios:
+        for portfolio in sorted_portfolios:
             with st.container():
                 col1, col2 = st.columns([3, 2])
                 
