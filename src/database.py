@@ -3,7 +3,6 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import streamlit as st
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,16 +20,13 @@ class DatabaseConfig:
     def connection_string(self):
         """Get MongoDB connection string from environment"""
         # Try different environment variable names
-        uri = (os.getenv("MONGO_URI"))
+        uri = os.getenv("MONGO_URI")
         
         if not uri:
             st.error(
                 "⚠️ MongoDB connection string not found. Please set MONGO_URI environment variable."
             )
             return None
-
-        # Remove password from logs (security)
-        safe_uri = uri.replace(uri.split("://")[1].split("@")[0], "***:***")
 
         return uri
 
@@ -132,11 +128,6 @@ db_config = DatabaseConfig()
 
 
 # Convenience functions for backward compatibility
-def get_db():
-    """Get database instance"""
-    return db_config.get_database()
-
-
 def get_users_collection():
     """Get users collection"""
     return db_config.get_collection("users")
@@ -145,6 +136,11 @@ def get_users_collection():
 def get_dashboard_collection():
     """Get dashboard collection"""
     return db_config.get_collection("dashboard_data")
+
+
+def get_portfolios_collection():
+    """Get portfolios collection"""
+    return db_config.get_collection("portfolios")
 
 
 def initialize_database():

@@ -1,67 +1,19 @@
 import hashlib
-import os
+import re
 from datetime import datetime, timedelta
 import secrets
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, DuplicateKeyError
+from pymongo.errors import DuplicateKeyError
 import streamlit as st
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+from bson import ObjectId
+from database import get_users_collection, get_dashboard_collection, get_portfolios_collection
 
 
-class DatabaseManager:
-    """Handles MongoDB connections and operations"""
-
-    def __init__(self):
-        self._client = None
-        self._db = None
-
-    @property
-    def client(self):
-        if self._client is None:
-            try:
-                # Get connection string from environment variable
-                uri = os.getenv("MONGO_URI")
-                if not uri:
-                    st.error(
-                        "MongoDB connection string not found. Please set MONGO_URI environment variable."
-                    )
-                    return None
-
-                self._client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-                # Test connection
-                self._client.server_info()
-            except ConnectionFailure:
-                st.error("Failed to connect to MongoDB. Please check your connection.")
-                return None
-        return self._client
-
-    @property
-    def db(self):
-        if self._db is None and self.client:
-            self._db = self.client["IA"]
-        return self._db
-
-    def get_users_collection(self):
-        if self.db is not None:
-            return self.db["users"]
-        return None
-
-    def get_dashboard_collection(self):
-        if self.db is not None:
-            return self.db["dashboard_data"]
-        return None
-    
-    def get_portfolios_collection(self):
-        if self.db is not None:
-            return self.db["portfolios"]
-        return None
-
-
-# Global database manager instance
-db_manager = DatabaseManager()
+def get_collection_safely(collection_getter):
+    """Safely get a database collection with error handling"""
+    collection = collection_getter()
+    if collection is None:
+        return None, (False, "Database connection failed")
+    return collection, None
 
 
 def hash_password(password, salt=None):
@@ -85,7 +37,7 @@ def verify_password(password, stored_hash, salt):
 def verify_user(username, password):
     """Verify user credentials"""
     try:
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is None:
             return False
 
@@ -101,7 +53,7 @@ def verify_user(username, password):
 def user_exists(username):
     """Check if username already exists"""
     try:
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is None:
             return True  # Fail safe - assume exists if can't check
 
@@ -131,8 +83,6 @@ def validate_password_strength(password):
 
 def validate_email(email):
     """Basic email validation"""
-    import re
-
     pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return re.match(pattern, email) is not None
 
@@ -140,7 +90,7 @@ def validate_email(email):
 def register_user(username, password, email):
     """Register a new user with enhanced validation"""
     try:
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is None:
             return False, "Database connection error"
 
@@ -194,7 +144,7 @@ def register_user(username, password, email):
 def update_last_login(username):
     """Update user's last login timestamp"""
     try:
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is not None:
             users.update_one(
                 {"username": username},
@@ -204,57 +154,10 @@ def update_last_login(username):
         st.error(f"Error updating login time: {str(e)}")
 
 
-def handle_failed_login(username):
-    """Handle failed login attempts and account locking"""
-    try:
-        users = db_manager.get_users_collection()
-        if users is not None:
-            user = users.find_one({"username": username})
-            if user:
-                failed_attempts = user.get("failed_login_attempts", 0) + 1
-                update_data = {"failed_login_attempts": failed_attempts}
-
-                # Lock account after 5 failed attempts for 15 minutes
-                if failed_attempts >= 5:
-                    update_data["account_locked_until"] = datetime.utcnow() + timedelta(
-                        minutes=15
-                    )
-
-                users.update_one({"username": username}, {"$set": update_data})
-    except Exception as e:
-        st.error(f"Error handling failed login: {str(e)}")
-
-
-def is_account_locked(username):
-    """Check if account is locked due to failed login attempts"""
-    try:
-        users = db_manager.get_users_collection()
-        if users is not None:
-            user = users.find_one({"username": username})
-            if user and user.get("account_locked_until"):
-                if datetime.utcnow() < user["account_locked_until"]:
-                    return True, user["account_locked_until"]
-                else:
-                    # Unlock account
-                    users.update_one(
-                        {"username": username},
-                        {
-                            "$unset": {
-                                "account_locked_until": "",
-                                "failed_login_attempts": "",
-                            }
-                        },
-                    )
-        return False, None
-    except Exception as e:
-        st.error(f"Error checking account lock: {str(e)}")
-        return False, None
-
-
 def get_user_info(username):
     """Get user information (excluding sensitive data)"""
     try:
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is not None:
             user = users.find_one({"username": username})
             if user:
@@ -286,7 +189,7 @@ def change_password(username, old_password, new_password):
 
         hashed_password, salt = hash_password(new_password)
 
-        users = db_manager.get_users_collection()
+        users = get_users_collection()
         if users is not None:
             users.update_one(
                 {"username": username},
@@ -304,9 +207,9 @@ def change_password(username, old_password, new_password):
 def create_portfolio(username, portfolio_data):
     """Create a new portfolio for a user"""
     try:
-        portfolios = db_manager.get_portfolios_collection()
-        if portfolios is None:
-            return False, "Database connection failed"
+        portfolios, error = get_collection_safely(get_portfolios_collection)
+        if error:
+            return error
         
         # Check if portfolio name already exists for this user
         existing = portfolios.find_one({
@@ -342,7 +245,7 @@ def create_portfolio(username, portfolio_data):
 def get_user_portfolios(username):
     """Get all portfolios for a user"""
     try:
-        portfolios = db_manager.get_portfolios_collection()
+        portfolios = get_portfolios_collection()
         if portfolios is None:
             return []
         
@@ -361,8 +264,7 @@ def get_user_portfolios(username):
 def get_portfolio_by_id(portfolio_id):
     """Get a specific portfolio by its ID"""
     try:
-        from bson import ObjectId
-        portfolios = db_manager.get_portfolios_collection()
+        portfolios = get_portfolios_collection()
         if portfolios is None:
             return None
         
@@ -377,10 +279,9 @@ def get_portfolio_by_id(portfolio_id):
 def update_portfolio(portfolio_id, update_data):
     """Update a portfolio"""
     try:
-        from bson import ObjectId
-        portfolios = db_manager.get_portfolios_collection()
-        if portfolios is None:
-            return False, "Database connection failed"
+        portfolios, error = get_collection_safely(get_portfolios_collection)
+        if error:
+            return error
         
         update_data["updated_at"] = datetime.utcnow()
         
@@ -401,10 +302,9 @@ def update_portfolio(portfolio_id, update_data):
 def delete_portfolio(portfolio_id, username):
     """Delete a portfolio (soft delete by setting is_active to False)"""
     try:
-        from bson import ObjectId
-        portfolios = db_manager.get_portfolios_collection()
-        if portfolios is None:
-            return False, "Database connection failed"
+        portfolios, error = get_collection_safely(get_portfolios_collection)
+        if error:
+            return error
         
         result = portfolios.update_one(
             {"_id": ObjectId(portfolio_id), "user_id": username},
@@ -423,10 +323,9 @@ def delete_portfolio(portfolio_id, username):
 def add_stock_to_portfolio(portfolio_id, stock_data):
     """Add a stock to a portfolio"""
     try:
-        from bson import ObjectId
-        portfolios = db_manager.get_portfolios_collection()
-        if portfolios is None:
-            return False, "Database connection failed"
+        portfolios, error = get_collection_safely(get_portfolios_collection)
+        if error:
+            return error
         
         # Check if stock already exists in portfolio
         portfolio = portfolios.find_one({"_id": ObjectId(portfolio_id)})
@@ -457,10 +356,9 @@ def add_stock_to_portfolio(portfolio_id, stock_data):
 def remove_stock_from_portfolio(portfolio_id, stock_symbol):
     """Remove a stock from a portfolio"""
     try:
-        from bson import ObjectId
-        portfolios = db_manager.get_portfolios_collection()
-        if portfolios is None:
-            return False, "Database connection failed"
+        portfolios, error = get_collection_safely(get_portfolios_collection)
+        if error:
+            return error
         
         result = portfolios.update_one(
             {"_id": ObjectId(portfolio_id)},
