@@ -1,31 +1,31 @@
-# 🔐 Secure Authentication App
+# Secure Authentication App
 
 A production-ready Streamlit application with MongoDB authentication, enhanced security features, and modern UI design.
 
-## ✨ Features
+## Features
 
-### 🔒 Security
+### Security
 - **Password Hashing**: SHA-256 with unique salts
 - **Account Locking**: Automatic lockout after 5 failed attempts
 - **Password Strength**: Real-time validation with strength meter
 - **Input Validation**: Comprehensive email and username validation
 - **Connection Security**: Secure MongoDB connection handling
 
-### 👤 User Management
+### User Management
 - **User Registration**: With email verification
 - **Secure Login**: With failed attempt tracking
 - **Profile Management**: View and update user information
 - **Password Change**: Secure password update functionality
 - **Session Management**: Proper session handling and cleanup
 
-### 🎨 Modern UI
+### Modern UI
 - **Responsive Design**: Clean, mobile-friendly interface
 - **Real-time Feedback**: Password strength indicators
 - **Status Indicators**: Connection and security status
 - **Enhanced Dashboard**: Activity tracking and settings
 - **Progress Animations**: Visual feedback for user actions
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -53,7 +53,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
    streamlit run main.py
    ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ├── main.py           # Application entry point and routing
@@ -65,7 +65,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 └── README.md         # This file
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### MongoDB Setup
 
@@ -80,10 +80,10 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `MONGODB_URI` | MongoDB connection string | ✅ |
-| `SECRET_KEY` | Application secret key | ❌ |
-| `DEBUG` | Enable debug mode | ❌ |
+| `SECRET_KEY` | Application secret key | No |
+| `DEBUG` | Enable debug mode | No |
 
-## 🛡️ Security Features
+## Security Features
 
 ### Password Requirements
 - Minimum 8 characters
@@ -104,7 +104,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 - No sensitive data in logs
 - Secure database connections
 
-## 📊 Database Schema
+## Database Schema
 
 ### Users Collection
 ```javascript
@@ -133,7 +133,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 }
 ```
 
-## 🔄 API Functions
+## API Functions
 
 ### Authentication
 - `verify_user(username, password)` - Verify login credentials
@@ -150,7 +150,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 - `get_user_info(username)` - Get user profile information
 - `update_last_login(username)` - Update last login timestamp
 
-## 🚀 Deployment
+## Deployment
 
 ### Streamlit Cloud
 1. Push code to GitHub repository
@@ -172,7 +172,7 @@ EXPOSE 8501
 CMD ["streamlit", "run", "main.py"]
 ```
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - [ ] Two-factor authentication (2FA)
 - [ ] Email verification for registration
@@ -185,7 +185,7 @@ CMD ["streamlit", "run", "main.py"]
 - [ ] CAPTCHA for registration
 - [ ] Email notifications for security events
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -203,11 +203,11 @@ CMD ["streamlit", "run", "main.py"]
 - Install all requirements: `pip install -r requirements.txt`
 - Check Python version compatibility
 
-## 📝 License
+## License
 
 This project is open source and available under the MIT License.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -215,6 +215,6 @@ This project is open source and available under the MIT License.
 4. Test thoroughly
 5. Submit a pull request
 
-## 📧 Support
+## Support
 
 For support and questions, please create an issue in the repository or contact the development team.

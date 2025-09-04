@@ -1,89 +1,89 @@
 %%  How to run: https://mermaid.live/
 
 flowchart TD
-    Start([🚀 User Starts App]) --> CheckSession{Session Active?}
+    Start([User Starts App]) --> CheckSession{Session Active?}
     
     %% Session Check
-    CheckSession -->|Yes| Dashboard[📊 Dashboard]
-    CheckSession -->|No| LoginPage[🔐 Login Page]
+    CheckSession -->|Yes| Dashboard[Dashboard]
+    CheckSession -->|No| LoginPage[Login Page]
     
     %% Login Flow
-    LoginPage --> EnterCreds[📝 Enter Credentials]
+    LoginPage --> EnterCreds[Enter Credentials]
     EnterCreds --> ValidateInput{Valid Input?}
-    ValidateInput -->|No| ErrorMsg1[❌ Show Error] 
+    ValidateInput -->|No| ErrorMsg1[Show Error] 
     ErrorMsg1 --> LoginPage
     
     ValidateInput -->|Yes| CheckLocked{Account Locked?}
-    CheckLocked -->|Yes| LockedMsg[🔒 Account Locked<br/>Try again later]
+    CheckLocked -->|Yes| LockedMsg[Account Locked<br/>Try again later]
     LockedMsg --> LoginPage
     
     CheckLocked -->|No| VerifyCredentials{Valid Credentials?}
-    VerifyCredentials -->|No| FailedAttempt[📈 Increment Failed Attempts]
+    VerifyCredentials -->|No| FailedAttempt[Increment Failed Attempts]
     FailedAttempt --> CheckAttempts{≥5 Attempts?}
-    CheckAttempts -->|Yes| LockAccount[🔒 Lock Account<br/>15 minutes]
-    CheckAttempts -->|No| ErrorMsg2[❌ Invalid Credentials]
+    CheckAttempts -->|Yes| LockAccount[Lock Account<br/>15 minutes]
+    CheckAttempts -->|No| ErrorMsg2[Invalid Credentials]
     LockAccount --> ErrorMsg2
     ErrorMsg2 --> LoginPage
     
-    VerifyCredentials -->|Yes| UpdateLogin[⏰ Update Last Login]
-    UpdateLogin --> SetSession[✅ Set Session]
+    VerifyCredentials -->|Yes| UpdateLogin[Update Last Login]
+    UpdateLogin --> SetSession[Set Session]
     SetSession --> Dashboard
     
     %% Registration Flow
-    LoginPage --> RegLink[📝 Register Link]
-    RegLink --> RegisterPage[📋 Registration Page]
+    LoginPage --> RegLink[Register Link]
+    RegLink --> RegisterPage[Registration Page]
     
-    RegisterPage --> FillForm[📝 Fill Registration Form]
+    RegisterPage --> FillForm[Fill Registration Form]
     FillForm --> ValidateReg{Valid Data?}
-    ValidateReg -->|No| RegError[❌ Show Validation Error]
+    ValidateReg -->|No| RegError[Show Validation Error]
     RegError --> RegisterPage
     
     ValidateReg -->|Yes| CheckExists{User Exists?}
-    CheckExists -->|Yes| ExistsError[❌ User Already Exists]
+    CheckExists -->|Yes| ExistsError[User Already Exists]
     ExistsError --> RegisterPage
     
     CheckExists -->|No| CheckPassword{Strong Password?}
-    CheckPassword -->|No| WeakPassword[❌ Password Too Weak]
+    CheckPassword -->|No| WeakPassword[Password Too Weak]
     WeakPassword --> RegisterPage
     
-    CheckPassword -->|Yes| CreateUser[👤 Create User Account]
-    CreateUser --> RegSuccess[🎉 Registration Success]
+    CheckPassword -->|Yes| CreateUser[Create User Account]
+    CreateUser --> RegSuccess[Registration Success]
     RegSuccess --> LoginPage
     
     %% Dashboard Features
-    Dashboard --> Profile[👤 View Profile]
-    Dashboard --> Settings[⚙️ Settings]
-    Dashboard --> Security[🛡️ Security Settings]
-    Dashboard --> Activity[📊 Activity Log]
+    Dashboard --> Profile[View Profile]
+    Dashboard --> Settings[Settings]
+    Dashboard --> Security[Security Settings]
+    Dashboard --> Activity[Activity Log]
     
     %% Security Features
-    Security --> ChangePassword[🔑 Change Password]
+    Security --> ChangePassword[Change Password]
     ChangePassword --> ValidateOld{Valid Old Password?}
-    ValidateOld -->|No| OldPassError[❌ Incorrect Current Password]
+    ValidateOld -->|No| OldPassError[Incorrect Current Password]
     OldPassError --> Security
     ValidateOld -->|Yes| ValidateNew{Strong New Password?}
-    ValidateNew -->|No| NewPassError[❌ Weak New Password]
+    ValidateNew -->|No| NewPassError[Weak New Password]
     NewPassError --> Security
-    ValidateNew -->|Yes| UpdatePassword[✅ Update Password]
-    UpdatePassword --> PassSuccess[🎉 Password Updated]
+    ValidateNew -->|Yes| UpdatePassword[Update Password]
+    UpdatePassword --> PassSuccess[Password Updated]
     PassSuccess --> Security
     
     %% Logout Flow
-    Dashboard --> Logout[🚪 Logout]
+    Dashboard --> Logout[Logout]
     Profile --> Logout
     Settings --> Logout
     Security --> Logout
     Activity --> Logout
     
-    Logout --> ClearSession[🗑️ Clear Session]
-    ClearSession --> LogoutSuccess[✅ Logout Success]
+    Logout --> ClearSession[Clear Session]
+    ClearSession --> LogoutSuccess[Logout Success]
     LogoutSuccess --> LoginPage
     
     %% Password Strength Indicator
-    FillForm --> PasswordMeter[📊 Real-time Password Strength]
-    PasswordMeter --> |Weak| WeakIndicator[🔴 Weak]
-    PasswordMeter --> |Medium| MediumIndicator[🟡 Medium]
-    PasswordMeter --> |Strong| StrongIndicator[🟢 Strong]
+    FillForm --> PasswordMeter[Real-time Password Strength]
+    PasswordMeter --> |Weak| WeakIndicator[Weak]
+    PasswordMeter --> |Medium| MediumIndicator[Medium]
+    PasswordMeter --> |Strong| StrongIndicator[Strong]
     
     %% Styling
     classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
