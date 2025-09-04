@@ -16,13 +16,13 @@ def format_percentage_with_color(percentage):
     else:
         return f'<span class="neutral-percentage">{percentage:.2f}%</span>'
 
-@st.dialog("🗑️ Delete Portfolio")
+@st.dialog("Delete Portfolio")
 def show_delete_confirmation_popup():
     """Show portfolio deletion confirmation popup"""
     portfolio_id = st.session_state.get('confirm_delete_portfolio')
     portfolio_name = st.session_state.get('confirm_delete_name', 'Unknown Portfolio')
     
-    st.warning(f"⚠️ **Confirm Deletion**")
+    st.warning(f"**Confirm Deletion**")
     st.write(f"Are you sure you want to delete the portfolio **{portfolio_name}**?")
     st.write("**This action cannot be undone.**")
     st.write("")
@@ -30,26 +30,26 @@ def show_delete_confirmation_popup():
     col_confirm, col_cancel = st.columns(2)
     
     with col_confirm:
-        if st.button("🗑️ Yes, Delete", type="primary", use_container_width=True):
+        if st.button("Yes, Delete", type="primary", use_container_width=True):
             try:
                 from login import delete_portfolio
                 success, message = delete_portfolio(portfolio_id, st.session_state.username)
                 
                 if success:
-                    st.success(f"✅ Portfolio '{portfolio_name}' deleted successfully!")
+                    st.success(f"Portfolio '{portfolio_name}' deleted successfully!")
                     # Clear session state
                     del st.session_state.confirm_delete_portfolio
                     del st.session_state.confirm_delete_name
                     time.sleep(2)  # Show success message briefly
                     st.rerun()
                 else:
-                    st.error(f"❌ Failed to delete portfolio: {message}")
+                    st.error(f"Failed to delete portfolio: {message}")
                     
             except Exception as e:
-                st.error(f"❌ Error deleting portfolio: {str(e)}")
+                st.error(f"Error deleting portfolio: {str(e)}")
     
     with col_cancel:
-        if st.button("❌ Cancel", use_container_width=True):
+        if st.button("Cancel", use_container_width=True):
             # Clear confirmation state and close popup
             del st.session_state.confirm_delete_portfolio
             del st.session_state.confirm_delete_name
@@ -258,7 +258,7 @@ def get_multiple_stocks_data(symbols, days):
 
 def login_page(go_to, verify_user, update_last_login):
     """Render the login page"""
-    st.title("🔐 Login")
+    st.title("Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -284,11 +284,11 @@ def login_page(go_to, verify_user, update_last_login):
         strength = calculate_password_strength(password)
         st.progress(strength / 100)
         if strength < 50:
-            st.caption("🔴 Weak password")
+            st.caption("Weak password")
         elif strength < 80:
-            st.caption("🟡 Medium password")
+            st.caption("Medium password")
         else:
-            st.caption("🟢 Strong password")
+            st.caption("Strong password")
 
     st.divider()
 
@@ -299,7 +299,7 @@ def login_page(go_to, verify_user, update_last_login):
 
 def register_page(go_to, register_user):
     """Render the registration page with enhanced validation"""
-    st.title("📝 Register")
+    st.title("Register")
 
     username = st.text_input("Choose a username", help="Must be at least 3 characters")
     email = st.text_input("Email", help="We'll never share your email")
@@ -315,22 +315,22 @@ def register_page(go_to, register_user):
         strength = calculate_password_strength(password)
         progress_bar = st.progress(strength / 100)
         if strength < 30:
-            st.caption("🔴 Very weak password")
+            st.caption("Very weak password")
         elif strength < 50:
-            st.caption("🟡 Weak password")
+            st.caption("Weak password")
         elif strength < 70:
-            st.caption("🟠 Medium password")
+            st.caption("Medium password")
         elif strength < 90:
-            st.caption("🟢 Strong password")
+            st.caption("Strong password")
         else:
-            st.caption("💪 Very strong password")
+            st.caption("Very strong password")
 
     # Password match indicator
     if password and confirm_password:
         if password == confirm_password:
-            st.success("✅ Passwords match")
+            st.success("Passwords match")
         else:
-            st.error("❌ Passwords don't match")
+            st.error("Passwords don't match")
 
     col1, col2 = st.columns(2)
 
@@ -351,7 +351,7 @@ def register_page(go_to, register_user):
 
 def profile_page(go_to, get_user_info, change_password):
     """Render the profile page with user information and settings"""
-    st.title("👤 Profile")
+    st.title("Profile")
 
     # Get user info
     user_info = get_user_info(st.session_state.username)
@@ -372,7 +372,7 @@ def profile_page(go_to, get_user_info, change_password):
     st.divider()
 
     # Profile tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Profile Information", "⚙️ Settings", "🔐 Security", "📊 Activity", "🔧 Session"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Profile Information", "Settings", "Security", "Activity", "Session"])
 
     with tab1:
         st.subheader("Profile Information")
@@ -389,7 +389,7 @@ def profile_page(go_to, get_user_info, change_password):
                     st.image(user_info['profile_photo'], width=150, caption="Current Photo")
                 else:
                     # Default avatar placeholder
-                    st.write("📷")
+                    st.write("No photo")
                     st.caption("No photo uploaded")
                 
                 # Photo upload
@@ -409,7 +409,7 @@ def profile_page(go_to, get_user_info, change_password):
                         if st.button("Save Photo"):
                             # In a real app, you'd upload to cloud storage (AWS S3, etc.)
                             # For demo, we'll just show success
-                            st.success("✅ Profile photo updated!")
+                            st.success("Profile photo updated!")
                             st.info("Note: Photo upload functionality would connect to cloud storage in production")
             
             with col_info:
@@ -430,7 +430,7 @@ def profile_page(go_to, get_user_info, change_password):
         col_left, col_right = st.columns(2)
         
         with col_left:
-            with st.expander("📧 Update Email"):
+            with st.expander("Update Email"):
                 new_email = st.text_input(
                     "New Email", value=user_info.get("email", "") if user_info else ""
                 )
@@ -480,9 +480,9 @@ def profile_page(go_to, get_user_info, change_password):
 
         # Security info
         st.write("**Security Status**")
-        st.write("✅ Password protected")
-        st.write("✅ Email verified")
-        st.write("⚠️ Two-factor authentication: Not enabled (Coming soon)")
+        st.write("Password protected")
+        st.write("Email verified")
+        st.write("Two-factor authentication: Not enabled (Coming soon)")
 
     with tab4:
         st.subheader("Recent Activity")
@@ -506,7 +506,7 @@ def profile_page(go_to, get_user_info, change_password):
             with st.container():
                 col1, col2, col3 = st.columns([2, 2, 1])
                 with col1:
-                    st.write(f"🔹 {activity['action']}")
+                    st.write(f"• {activity['action']}")
                 with col2:
                     st.write(activity["timestamp"].strftime("%Y-%m-%d %H:%M"))
                 with col3:
@@ -525,7 +525,7 @@ def profile_page(go_to, get_user_info, change_password):
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🔄 Refresh Session", type="secondary", use_container_width=True):
+            if st.button("Refresh Session", type="secondary", use_container_width=True):
                 st.success("Session refreshed!")
                 st.rerun()
 
@@ -543,35 +543,35 @@ def dashboard_page(go_to, get_user_info, change_password):
     
     # Sidebar configuration
     with st.sidebar:
-        st.header("📊 Menu")
+        st.header("Menu")
         
         # Dashboard options
-        st.subheader("🔧 Options")
+        st.subheader("Options")
         
-        if st.button("📈 Detailed Stock Analysis", use_container_width=True):
+        if st.button("Detailed Stock Analysis", use_container_width=True):
             go_to("stock_analysis")
         
-        if st.button("💼 Portfolios", use_container_width=True):
+        if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("👤 Profile & Settings", use_container_width=True):
+        if st.button("Profile & Settings", use_container_width=True):
             go_to("profile")
         
         st.divider()
         
         # Quick stats
-        st.subheader("ℹ️ Quick Info")
-        st.caption("📅 Market data updated in real-time")
-        st.caption("🔄 Auto-refresh every 5 minutes")
+        st.subheader("Quick Info")
+        st.caption("Market data updated in real-time")
+        st.caption("Auto-refresh every 5 minutes")
     
     # Main dashboard title
-    st.title("📊 Dashboard")
+    st.title("Dashboard")
 
     # Get user info
     user_info = get_user_info(st.session_state.username)
 
     # Welcome message with user info
-    st.markdown(f"### Welcome back, **{st.session_state.username}**! 👋")
+    st.markdown(f"### Welcome back, **{st.session_state.username}**!")
 
     if user_info and user_info.get("last_login"):
         last_login = user_info["last_login"]
@@ -596,22 +596,22 @@ def dashboard_page(go_to, get_user_info, change_password):
         # User has portfolios - show full quick actions
         action_col1, action_col2, action_col3 = st.columns(3)
         with action_col1:
-            if st.button("➕ Create New Portfolio", type="primary", use_container_width=True):
+            if st.button("Create New Portfolio", type="primary", use_container_width=True):
                 go_to("create_portfolio")
         with action_col2:
-            if st.button("📊 View All Portfolios", use_container_width=True):
+            if st.button("View All Portfolios", use_container_width=True):
                 go_to("portfolios")
         with action_col3:
-            if st.button("🔎 Search Stocks", use_container_width=True):
+            if st.button("Search Stocks", use_container_width=True):
                 go_to("stock_analysis")
     else:
         # No portfolios yet - show getting started actions
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("➕ Create Your First Portfolio", type="primary", use_container_width=True):
+            if st.button("Create Your First Portfolio", type="primary", use_container_width=True):
                 go_to("create_portfolio")
         with col2:
-            if st.button("📚 Learn About Portfolios", use_container_width=True):
+            if st.button("Learn About Portfolios", use_container_width=True):
                 st.info("""
                 **What is a Portfolio?**
                 
@@ -625,7 +625,7 @@ def dashboard_page(go_to, get_user_info, change_password):
     st.divider()
 
     # Portfolio Summary Section
-    st.subheader("💼 Your Portfolios Summary")
+    st.subheader("Your Portfolios Summary")
     
     if user_portfolios:
         # Calculate overall portfolio metrics
@@ -655,7 +655,7 @@ def dashboard_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Portfolio list view
-        st.subheader("📊 Portfolio Overview")
+        st.subheader("Portfolio Overview")
         
         # Create table data for portfolios
         portfolio_data = []
@@ -698,12 +698,12 @@ def dashboard_page(go_to, get_user_info, change_password):
                 
     else:
         # No portfolios yet
-        st.info("📝 You haven't created any portfolios yet!")
+        st.info("You haven't created any portfolios yet!")
     
     st.divider()
 
     # Stock Market Summary Section
-    st.subheader("📈 Global Stock Market Dashboard")
+    st.subheader("Global Stock Market Dashboard")
     
     # Stock symbols organized by country
     stock_data_by_country = {
@@ -815,10 +815,10 @@ def stock_analysis_page(go_to, get_user_info, change_password):
     
     # Sidebar for stock analysis
     with st.sidebar:
-        st.header("📈 Stock Analysis")
+        st.header("Stock Analysis")
         
         # Stock search
-        st.subheader("🔍 Stock Search")
+        st.subheader("Stock Search")
         
         # Create consolidated list of all stocks from all countries
         all_stock_symbols = []
@@ -871,11 +871,11 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             selected_stock = st.session_state.selected_stock_symbol
         
         # Time range - Fixed for detailed analysis
-        st.info("📊 **Analysis Period:** 10 Years (3,650 days)")
+        st.info("**Analysis Period:** 10 Years (3,650 days)")
         days = 90  # Keep for any remaining sidebar functionality
         
         # Analysis options
-        st.subheader("📊 Analysis Tools")
+        st.subheader("Analysis Tools")
         show_volume = st.checkbox("Show Volume", value=True)
         show_moving_avg = st.checkbox("Show Moving Average", value=False)
         
@@ -885,14 +885,14 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         if st.button("← Back to Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("💼 Portfolios", use_container_width=True):
+        if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("👤 Profile & Settings", use_container_width=True):
+        if st.button("Profile & Settings", use_container_width=True):
             go_to("profile")
     
     # Main analysis content
-    st.title(f"📈 {selected_stock} - Detailed Analysis")
+    st.title(f"{selected_stock} - Detailed Analysis")
     
     # Fetch data - Fixed 10-year period for detailed analysis
     analysis_days = 3650  # 10 years (10 * 365)
@@ -932,7 +932,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         col1, col2 = st.columns([3, 2])
         
         with col1:
-            st.subheader(f"📊 {selected_stock} Price Chart")
+            st.subheader(f"{selected_stock} Price Chart")
             
             try:
                 # Add moving average if selected
@@ -950,11 +950,11 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         with col2:
             try:
                 if show_volume and 'Volume' in data.columns:
-                    st.subheader("📊 Volume Chart")
+                    st.subheader("Volume Chart")
                     volume_data = pd.DataFrame({'Volume': data['Volume']})
                     st.bar_chart(volume_data, height=400)
                 elif 'High' in data.columns and 'Low' in data.columns:
-                    st.subheader("📈 High-Low Range")
+                    st.subheader("High-Low Range")
                     high_low_data = pd.DataFrame({
                         'High': data['High'],
                         'Low': data['Low']
@@ -972,7 +972,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         col1, col2 = st.columns([2, 3])
         
         with col1:
-            st.subheader("📊 Recent Performance")
+            st.subheader("Recent Performance")
             
             # Calculate different time periods
             periods = [1, 7, 30]
@@ -992,7 +992,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
                 st.table(pd.DataFrame(performance_data))
         
         with col2:
-            st.subheader("📈 Price Statistics")
+            st.subheader("Price Statistics")
             
             # Statistical summary
             stats_data = [
@@ -1015,7 +1015,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             st.write(f"**Search Query:** {news_info['search_query']}")
             
             st.link_button(
-                f"🔗 View {news_info['company_name']} News on Google", 
+                f"View {news_info['company_name']} News on Google", 
                 news_info['news_url'],
                 use_container_width=True
             )
@@ -1059,15 +1059,15 @@ def portfolios_page(go_to, get_user_info, change_password):
     
     # Sidebar for portfolio management
     with st.sidebar:
-        st.header("💼 Portfolio Manager")
+        st.header("Portfolio Manager")
         
         # Portfolio actions
-        st.subheader("🔧 Actions")
+        st.subheader("Actions")
         
-        if st.button("➕ Create New Portfolio", use_container_width=True):
+        if st.button("Create New Portfolio", use_container_width=True):
             go_to("create_portfolio")
         
-        if st.button("📊 Portfolio Analytics", use_container_width=True):
+        if st.button("Portfolio Analytics", use_container_width=True):
             st.session_state.show_analytics = True
             
         st.divider()
@@ -1076,17 +1076,17 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("← Back to Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("📈 Stock Analysis", use_container_width=True):
+        if st.button("Stock Analysis", use_container_width=True):
             go_to("stock_analysis")
         
-        if st.button("👤 Profile & Settings", use_container_width=True):
+        if st.button("Profile & Settings", use_container_width=True):
             go_to("profile")
     
     # Main portfolio content
-    st.title("💼 Portfolio Management")
+    st.title("Portfolio Management")
     
     # Summary section
-    st.header("📊 Summary")
+    st.header("Summary")
     
     # Fetch portfolios from database
     from login import get_user_portfolios
@@ -1132,12 +1132,12 @@ def portfolios_page(go_to, get_user_info, change_password):
         with col4:
             st.metric("Active Portfolios", len([p for p in sample_portfolios if p.get('value', 0) > 0]))
     else:
-        st.info("📝 No portfolios found. Create your first portfolio to get started!")
+        st.info("No portfolios found. Create your first portfolio to get started!")
     
     st.divider()
     
     # My Portfolios section
-    st.header("📈 My Portfolios")
+    st.header("My Portfolios")
     
     if sample_portfolios:
         # Bubble sort portfolios by value (highest first)
@@ -1176,21 +1176,21 @@ def portfolios_page(go_to, get_user_info, change_password):
                 # Portfolio actions
                 col_view, col_edit, col_share, col_delete = st.columns(4)
                 with col_view:
-                    if st.button(f"👁️ View", key=f"view_{portfolio['name']}"):
+                    if st.button(f"View", key=f"view_{portfolio['name']}"):
                         # Store portfolio ID for viewing details
                         st.session_state.view_portfolio_id = portfolio['_id']
                         st.session_state.view_portfolio_name = portfolio['name']
                         go_to("portfolio_details")
                 
                 with col_edit:
-                    if st.button(f"✏️ Edit", key=f"edit_{portfolio['name']}"):
+                    if st.button(f"Edit", key=f"edit_{portfolio['name']}"):
                         # Store portfolio ID for editing
                         st.session_state.edit_portfolio_id = portfolio['_id']
                         st.session_state.edit_portfolio_name = portfolio['name']
                         go_to("edit_portfolio")
                 
                 with col_share:
-                    if st.button(f"🔗 Share", key=f"share_{portfolio['name']}"):
+                    if st.button(f"Share", key=f"share_{portfolio['name']}"):
                         # Store portfolio info for sharing
                         st.session_state.share_portfolio = {
                             '_id': portfolio['_id'],
@@ -1200,14 +1200,14 @@ def portfolios_page(go_to, get_user_info, change_password):
                         }
                 
                 with col_delete:
-                    if st.button(f"🗑️ Delete", key=f"delete_{portfolio['name']}", type="secondary"):
+                    if st.button(f"Delete", key=f"delete_{portfolio['name']}", type="secondary"):
                         st.session_state.confirm_delete_portfolio = portfolio['_id']
                         st.session_state.confirm_delete_name = portfolio['name']
                         st.rerun()
                 
                 # Share functionality (appears when share button is clicked)
                 if st.session_state.get('share_portfolio') and st.session_state.share_portfolio['_id'] == portfolio['_id']:
-                    with st.expander(f"🔗 Share Portfolio: {portfolio['name']}", expanded=True):
+                    with st.expander(f"Share Portfolio: {portfolio['name']}", expanded=True):
                         st.write("**Share your portfolio with others:**")
                         
                         # Generate shareable content
@@ -1220,51 +1220,51 @@ def portfolios_page(go_to, get_user_info, change_password):
                         share_text = f"""
 Investment Portfolio Template: "{share_data['name']}"
 
-📊 Portfolio Composition:
-🎯 {len(share_data['stocks'])} stocks: {', '.join(share_data['stocks'])}
+Portfolio Composition:
+{len(share_data['stocks'])} stocks: {', '.join(share_data['stocks'])}
 
-💡 Create your own version of this portfolio!
-📱 View Template: {portfolio_url}
+Create your own version of this portfolio!
+View Template: {portfolio_url}
                         """.strip()
                         
                         # Portfolio template information
-                        st.info("🔒 **Read-Only Portfolio Template** - Others can view your stock selection and create their own similar portfolio, but cannot edit your original portfolio.")
+                        st.info("**Read-Only Portfolio Template** - Others can view your stock selection and create their own similar portfolio, but cannot edit your original portfolio.")
                         
                         # Share options
                         col_share_left, col_share_right = st.columns(2)
                         
                         with col_share_left:
-                            st.write("**📋 Share Portfolio Template**")
+                            st.write("**Share Portfolio Template**")
                             st.text_area("Portfolio Template Message", value=share_text, height=120, key=f"share_text_{share_data['_id']}")
                             
                             col_copy, col_close = st.columns(2)
                             with col_copy:
-                                if st.button("📋 Copy Template", key=f"copy_template_{share_data['_id']}", type="primary"):
-                                    st.success("✅ Portfolio template copied to clipboard!")
+                                if st.button("Copy Template", key=f"copy_template_{share_data['_id']}", type="primary"):
+                                    st.success("Portfolio template copied to clipboard!")
                             
                             with col_close:
-                                if st.button("❌ Close", key=f"close_share_{share_data['_id']}"):
+                                if st.button("Close", key=f"close_share_{share_data['_id']}"):
                                     del st.session_state.share_portfolio
                                     st.rerun()
                         
                         with col_share_right:
-                            st.write("**📈 Portfolio Composition**")
+                            st.write("**Portfolio Composition**")
                             st.write("**Stock Holdings:**")
                             for stock in share_data['stocks']:
                                 st.write(f"• {stock}")
                             
                             st.write("---")
-                            st.write("**🎯 What others get:**")
-                            st.caption("✅ Stock symbols and composition")
-                            st.caption("✅ Portfolio structure template")
-                            st.caption("❌ Your actual investment amounts")  
-                            st.caption("❌ Ability to modify your portfolio")
+                            st.write("**What others get:**")
+                            st.caption("Stock symbols and composition")
+                            st.caption("Portfolio structure template")
+                            st.caption("Your actual investment amounts")  
+                            st.caption("Ability to modify your portfolio")
                             
-                            st.write("**🔗 Share URL:**")
+                            st.write("**Share URL:**")
                             st.code(portfolio_url, language=None)
                             
-                            if st.button("🌐 Generate Share Link", key=f"generate_link_{share_data['_id']}"):
-                                st.success("✅ Shareable link generated!")
+                            if st.button("Generate Share Link", key=f"generate_link_{share_data['_id']}"):
+                                st.success("Shareable link generated!")
                                 st.info("Others can use this link to create a similar portfolio with the same stocks.")
                 
                 st.markdown("---")
@@ -1275,7 +1275,7 @@ Investment Portfolio Template: "{share_data['name']}"
     
     # Create new portfolio form
     if st.session_state.get("show_create_form", False):
-        st.subheader("➕ Create New Portfolio")
+        st.subheader("Create New Portfolio")
         
         with st.form("create_portfolio"):
             portfolio_name = st.text_input("Portfolio Name", placeholder="e.g., Tech Growth Portfolio")
@@ -1290,7 +1290,7 @@ Investment Portfolio Template: "{share_data['name']}"
             with col1:
                 if st.form_submit_button("Create Portfolio", type="primary"):
                     if portfolio_name:
-                        st.success(f"✅ Portfolio '{portfolio_name}' created successfully!")
+                        st.success(f"Portfolio '{portfolio_name}' created successfully!")
                         st.balloons()
                         st.session_state.show_create_form = False
                         st.rerun()
@@ -1336,7 +1336,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
     
     # Sidebar navigation
     with st.sidebar:
-        st.header("💼 Create New Portfolio")
+        st.header("Create New Portfolio")
         
         st.divider()
         
@@ -1344,14 +1344,14 @@ def create_portfolio_page(go_to, get_user_info, change_password):
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("🏠 Dashboard", use_container_width=True):
+        if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("👤 Profile & Settings", use_container_width=True):
+        if st.button("Profile & Settings", use_container_width=True):
             go_to("profile")
     
     # Main content
-    st.title("💼 Create New Portfolio")
+    st.title("Create New Portfolio")
     st.markdown("### Let's build your investment portfolio step by step")
     
     st.divider()
@@ -1360,7 +1360,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
     with st.form("create_portfolio_form", clear_on_submit=False):
         
         # Countries question
-        st.subheader("🌍 Which countries would you like to invest in?")
+        st.subheader("Which countries would you like to invest in?")
         
         # Country selection with popular options
         countries = [
@@ -1379,7 +1379,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Portfolio name
-        st.subheader("📝 Portfolio Details")
+        st.subheader("Portfolio Details")
         portfolio_name = st.text_input(
             "Portfolio Name", 
             placeholder="e.g., My Global Growth Portfolio",
@@ -1411,11 +1411,11 @@ def create_portfolio_page(go_to, get_user_info, change_password):
             
             if success:
                 # Success message with portfolio details
-                st.success("🎉 Portfolio created successfully!")
+                st.success("Portfolio created successfully!")
                 st.balloons()
                 
                 # Display summary
-                st.subheader("📋 Portfolio Summary")
+                st.subheader("Portfolio Summary")
                 st.write(f"**Name:** {portfolio_name}")
                 st.write(f"**Countries:** {', '.join(selected_countries)}")
                 
@@ -1439,10 +1439,10 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 time.sleep(2)
                 go_to("my_stocks")
             else:
-                st.error(f"❌ {message}")
+                st.error(f"{message}")
             
         else:
-            st.error("❌ Please fill in all required fields (Portfolio name and at least one country)")
+            st.error("Please fill in all required fields (Portfolio name and at least one country)")
     
     elif cancelled:
         go_to("portfolios")
@@ -1453,7 +1453,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
     
     # Sidebar navigation
     with st.sidebar:
-        st.header("📈 My Stocks")
+        st.header("My Stocks")
         
         # Portfolio info
         if 'current_portfolio' in st.session_state:
@@ -1464,9 +1464,9 @@ def my_stocks_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Actions
-        st.subheader("🔧 Actions")
+        st.subheader("Actions")
         
-        if st.button("➕ Add Stock", use_container_width=True, type="primary"):
+        if st.button("Add Stock", use_container_width=True, type="primary"):
             go_to("stock_search")
         
         if st.button("📊 Portfolio Analytics", use_container_width=True):
@@ -1478,14 +1478,14 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("🏠 Dashboard", use_container_width=True):
+        if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("👤 Profile & Settings", use_container_width=True):
+        if st.button("Profile & Settings", use_container_width=True):
             go_to("profile")
     
     # Main content
-    st.title("📈 My Portfolio")
+    st.title("My Portfolio")
     
     # Get current portfolio from database
     portfolio = None
@@ -1516,7 +1516,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
     st.divider()
     
     # Stock list section
-    st.subheader("📋 Stock Holdings")
+    st.subheader("Stock Holdings")
     
     # Check if portfolio has stocks
     if portfolio and portfolio.get('stocks'):
@@ -1545,17 +1545,17 @@ def my_stocks_page(go_to, get_user_info, change_password):
                     st.caption("Total Value")
                 
                 with col5:
-                    if st.button("🗑️", key=f"remove_{idx}", help="Remove stock"):
+                    if st.button("Remove", key=f"remove_{idx}", help="Remove stock"):
                         # Remove from database
                         portfolio_id = st.session_state.current_portfolio.get('_id')
                         if portfolio_id and portfolio_id != 'temp_id':
                             from login import remove_stock_from_portfolio
                             success, message = remove_stock_from_portfolio(portfolio_id, stock['symbol'])
                             if success:
-                                st.success(f"✅ Removed {stock['symbol']} from portfolio")
+                                st.success(f"Removed {stock['symbol']} from portfolio")
                                 st.rerun()
                             else:
-                                st.error(f"❌ Failed to remove: {message}")
+                                st.error(f"Failed to remove: {message}")
                         else:
                             # Fallback for session state only
                             st.session_state.current_portfolio['stocks'].pop(idx)
@@ -1565,7 +1565,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
     
     else:
         # Empty state
-        st.info("📝 No stocks added yet. Click 'Add Stock' to start building your portfolio!")
+        st.info("No stocks added yet. Click 'Add Stock' to start building your portfolio!")
         
         # Call-to-action button
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -1576,7 +1576,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
 
 def show_stock_historical_data(symbol, name):
     """Display historical stock data from 2000s with detailed analysis"""
-    st.subheader(f"📊 Historical Analysis: {symbol}")
+    st.subheader(f"Historical Analysis: {symbol}")
     st.caption(f"**{name}** - Long-term data from 2000s")
     
     with st.spinner(f"Loading historical data for {symbol} from 2000s..."):
@@ -1614,7 +1614,7 @@ def show_stock_historical_data(symbol, name):
                 st.divider()
                 
                 # Interactive charts
-                tab1, tab2, tab3, tab4 = st.tabs(["📈 Price History", "📊 Volume", "🔄 Returns", "📋 Statistics"])
+                tab1, tab2, tab3, tab4 = st.tabs(["Price History", "Volume", "Returns", "Statistics"])
                 
                 with tab1:
                     st.subheader("Stock Price Over Time")
@@ -1730,10 +1730,10 @@ def stock_search_page(go_to, get_user_info, change_password):
     
     # Sidebar navigation
     with st.sidebar:
-        st.header("🔍 Stock Search")
+        st.header("Stock Search")
         
         # Search filters
-        st.subheader("🎯 Filters")
+        st.subheader("Filters")
         
         # Country filter with all available countries
         available_countries = ["All", "United States", "United Kingdom", "Australia", "Hong Kong", "China"]
@@ -1752,15 +1752,15 @@ def stock_search_page(go_to, get_user_info, change_password):
         if st.button("← Back to My Stocks", use_container_width=True):
             go_to("my_stocks")
         
-        if st.button("🏠 Dashboard", use_container_width=True):
+        if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
     
     # Main content
-    st.title("🔍 Stock Search")
+    st.title("Stock Search")
     st.markdown("### Find and add stocks to your portfolio")
     
     # Search bar
-    search_query = st.text_input("🔍 Search for stocks (symbol or company name)", placeholder="e.g., AAPL, Apple, Tesla")
+    search_query = st.text_input("Search for stocks (symbol or company name)", placeholder="e.g., AAPL, Apple, Tesla")
     
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -1770,7 +1770,7 @@ def stock_search_page(go_to, get_user_info, change_password):
     
     # Real-time stock search results using yfinance
     if search_query or search_button:
-        st.subheader(f"📊 Search Results for '{search_query or 'Popular Stocks'}'")
+        st.subheader(f"Search Results for '{search_query or 'Popular Stocks'}'")
         
         # Get real stock data based on selected country
         with st.spinner("Loading real-time stock data..."):
@@ -1794,9 +1794,9 @@ def stock_search_page(go_to, get_user_info, change_password):
         
         # Show filter info
         if selected_country != "All":
-            st.info(f"🌍 Showing {len(filtered_stocks)} real-time stocks from {selected_country}")
+            st.info(f"Showing {len(filtered_stocks)} real-time stocks from {selected_country}")
         else:
-            st.info(f"🌍 Showing {len(filtered_stocks)} real-time stocks from all countries")
+            st.info(f"Showing {len(filtered_stocks)} real-time stocks from all countries")
         
         # Display search results
         for stock in filtered_stocks:
@@ -1808,13 +1808,13 @@ def stock_search_page(go_to, get_user_info, change_password):
                     st.caption(stock['name'])
                 
                 with col2:
-                    st.write(f"🌍 {stock['country']}")
+                    st.write(f"{stock['country']}")
                 
                 with col3:
                     st.write(f"${stock['price']:.2f}")
                 
                 with col4:
-                    change_color = "🟢" if stock['change'] > 0 else "🔴"
+                    change_color = "+" if stock['change'] > 0 else "-"
                     st.write(f"{change_color} {stock['change']:+.2f}")
                 
                 with col5:
@@ -1845,7 +1845,7 @@ def stock_search_page(go_to, get_user_info, change_password):
                     st.caption(f"Total Investment: ${total_cost:.2f}")
                     st.caption(f"Current Market Price: ${stock['price']:.2f}")
                     
-                    if st.button("➕ Add", key=f"add_{stock['symbol']}"):
+                    if st.button("Add", key=f"add_{stock['symbol']}"):
                         # Add stock to portfolio
                         if 'current_portfolio' not in st.session_state:
                             st.session_state.current_portfolio = {'stocks': []}
@@ -1881,7 +1881,7 @@ def stock_search_page(go_to, get_user_info, change_password):
                             if portfolio_id and portfolio_id != 'temp_id':
                                 db_success, db_message = add_stock_to_portfolio(portfolio_id, new_stock)
                                 if db_success:
-                                    st.success(f"✅ Added {shares} shares of {stock['symbol']} at ${purchase_price:.2f}/share (${total_cost:.2f} total) to your portfolio!")
+                                    st.success(f"Added {shares} shares of {stock['symbol']} at ${purchase_price:.2f}/share (${total_cost:.2f} total) to your portfolio!")
                                     st.balloons()
                                     
                                     # Redirect to My Portfolio (My Stocks) after balloons
@@ -1889,13 +1889,13 @@ def stock_search_page(go_to, get_user_info, change_password):
                                     time.sleep(2)  # Wait for balloons animation
                                     go_to("my_stocks")
                                 else:
-                                    st.error(f"❌ Failed to save to database: {db_message}")
+                                    st.error(f"Failed to save to database: {db_message}")
                             else:
-                                st.error("❌ Portfolio not found in database")
+                                st.error("Portfolio not found in database")
                 
                 with col6:
                     # Historical data button
-                    if st.button("📊 History", key=f"history_{stock['symbol']}", help="View historical data from 2000s"):
+                    if st.button("History", key=f"history_{stock['symbol']}", help="View historical data from 2000s"):
                         show_stock_historical_data(stock['symbol'], stock['name'])
                 
                 st.markdown("---")
@@ -1904,7 +1904,7 @@ def stock_search_page(go_to, get_user_info, change_password):
             st.info("No stocks found matching your search criteria.")
     
     else:
-        st.info("💡 Enter a stock symbol or company name to search for stocks to add to your portfolio.")
+        st.info("Enter a stock symbol or company name to search for stocks to add to your portfolio.")
 
 
 def edit_portfolio_page(go_to, get_user_info, change_password):
@@ -1929,7 +1929,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
     
     # Sidebar navigation
     with st.sidebar:
-        st.header("✏️ Edit Portfolio")
+        st.header("Edit Portfolio")
         
         # Portfolio info
         st.write(f"**Portfolio:** {portfolio['portfolio_name']}")
@@ -1937,7 +1937,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Actions
-        st.subheader("🔧 Actions")
+        st.subheader("Actions")
         
         if st.button("➕ Add More Stocks", use_container_width=True, type="primary"):
             # Set current portfolio for stock search
@@ -1955,14 +1955,14 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("🏠 Dashboard", use_container_width=True):
+        if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
     
     # Main content
-    st.title("✏️ Edit Portfolio")
+    st.title("Edit Portfolio")
     
     # Portfolio name editing section
-    st.subheader("📝 Portfolio Information")
+    st.subheader("Portfolio Information")
     
     col_name, col_name_btn = st.columns([3, 1])
     with col_name:
@@ -1982,34 +1982,34 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         if st.session_state.get('editing_portfolio_name'):
             col_save, col_cancel = st.columns(2)
             with col_save:
-                if st.button("💾", key="save_name", help="Save new name"):
+                if st.button("Save", key="save_name", help="Save new name"):
                     if 'portfolio_name_input' in st.session_state and st.session_state.portfolio_name_input.strip():
                         # Update portfolio name in database
                         success, message = update_portfolio(portfolio_id, {'portfolio_name': st.session_state.portfolio_name_input.strip()})
                         
                         if success:
-                            st.success(f"✅ Portfolio name updated to '{st.session_state.portfolio_name_input}'!")
+                            st.success(f"Portfolio name updated to '{st.session_state.portfolio_name_input}'!")
                             st.session_state.editing_portfolio_name = False
                             st.balloons()
                             st.rerun()
                         else:
-                            st.error(f"❌ Failed to update name: {message}")
+                            st.error(f"Failed to update name: {message}")
                     else:
                         st.error("Please enter a valid portfolio name")
             
             with col_cancel:
-                if st.button("❌", key="cancel_name", help="Cancel editing"):
+                if st.button("Cancel", key="cancel_name", help="Cancel editing"):
                     st.session_state.editing_portfolio_name = False
                     st.rerun()
         else:
-            if st.button("✏️ Edit Name", key="edit_name", help="Edit portfolio name"):
+            if st.button("Edit Name", key="edit_name", help="Edit portfolio name"):
                 st.session_state.editing_portfolio_name = True
                 st.rerun()
     
     st.divider()
     
     # Portfolio summary
-    st.subheader("💰 Portfolio Summary")
+    st.subheader("Portfolio Summary")
     total_value = sum(stock.get('price', 0) * stock.get('shares', 1) for stock in portfolio.get('stocks', []))
     col1, col2 = st.columns(2)
     with col1:
@@ -2020,7 +2020,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
     st.divider()
     
     # Stock management section
-    st.subheader("📈 Manage Stocks")
+    st.subheader("Manage Stocks")
     
     if portfolio.get('stocks'):
         stocks = portfolio['stocks']
@@ -2068,7 +2068,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
                 
                 with col5:
                     # Remove button
-                    if st.button("🗑️", key=f"remove_{stock['symbol']}_{idx}", help="Remove stock"):
+                    if st.button("Remove", key=f"remove_{stock['symbol']}_{idx}", help="Remove stock"):
                         # Mark stock for removal (will be processed when Save is clicked)
                         st.session_state.stock_changes[stock['symbol']] = 0
                         st.info(f"{stock['symbol']} marked for removal. Click 'Save Changes' to confirm.")
@@ -2086,7 +2086,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         # Save changes button
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("💾 Save Changes", type="primary", use_container_width=True):
+            if st.button("Save Changes", type="primary", use_container_width=True):
                 # Filter out stocks with 0 shares and process removals
                 final_stocks = [s for s in updated_stocks if s['shares'] > 0]
                 
@@ -2103,7 +2103,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
                 success, message = update_portfolio(portfolio_id, update_data)
                 
                 if success:
-                    st.success("✅ Portfolio updated successfully!")
+                    st.success("Portfolio updated successfully!")
                     st.session_state.stock_changes = {}  # Clear changes
                     st.balloons()
                     # Note: Page will refresh on next interaction
@@ -2111,13 +2111,13 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
                     st.error(f"Failed to update portfolio: {message}")
         
         with col2:
-            if st.button("❌ Cancel Changes", use_container_width=True):
+            if st.button("Cancel Changes", use_container_width=True):
                 st.session_state.stock_changes = {}  # Clear changes
                 st.info("Changes cancelled")
     
     else:
         # Empty state
-        st.info("📝 No stocks in this portfolio. Add stocks to get started!")
+        st.info("No stocks in this portfolio. Add stocks to get started!")
         
         if st.button("Add Your First Stock", type="primary", use_container_width=True):
             st.session_state.current_portfolio = {
@@ -2151,7 +2151,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
     
     # Sidebar navigation
     with st.sidebar:
-        st.header("👁️ Portfolio Details")
+        st.header("Portfolio Details")
         
         # Portfolio info
         st.write(f"**Portfolio:** {portfolio['portfolio_name']}")
@@ -2162,7 +2162,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         # Quick actions
         st.subheader("🔧 Actions")
         
-        if st.button("✏️ Edit Portfolio", use_container_width=True, type="primary"):
+        if st.button("Edit Portfolio", use_container_width=True, type="primary"):
             st.session_state.edit_portfolio_id = portfolio_id
             st.session_state.edit_portfolio_name = portfolio['portfolio_name']
             go_to("edit_portfolio")
@@ -2173,19 +2173,19 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("🏠 Dashboard", use_container_width=True):
+        if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
     
     # Main content
-    st.title("👁️ Portfolio Details")
+    st.title("Portfolio Details")
     st.markdown(f"### {portfolio['portfolio_name']}")
     
     # Get current stock prices for comparison
     stocks = portfolio.get('stocks', [])
     
     if not stocks:
-        st.info("📝 No stocks in this portfolio.")
-        if st.button("➕ Add Stocks", type="primary"):
+        st.info("No stocks in this portfolio.")
+        if st.button("Add Stocks", type="primary"):
             st.session_state.current_portfolio = {
                 '_id': portfolio_id,
                 'name': portfolio['portfolio_name'],
@@ -2246,7 +2246,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
     st.divider()
     
     # Detailed stock breakdown
-    st.subheader("📊 Stock Holdings Detail")
+    st.subheader("Stock Holdings Detail")
     
     # Create detailed table
     stock_details = []
@@ -2292,7 +2292,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         st.divider()
         
         # Individual stock cards with charts
-        st.subheader("📈 Individual Stock Performance")
+        st.subheader("Individual Stock Performance")
         
         # Create columns for stock cards
         cols = st.columns(3)
@@ -2331,7 +2331,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
                     # Action buttons
                     button_col1, button_col2 = st.columns(2)
                     with button_col1:
-                        if st.button("📊 View History", key=f"portfolio_history_{symbol}_{idx}", help="View historical data from 2000s"):
+                        if st.button("View History", key=f"portfolio_history_{symbol}_{idx}", help="View historical data from 2000s"):
                             show_stock_historical_data(symbol, stock.get('name', symbol))
                     
                     # Try to show mini chart
