@@ -3,9 +3,22 @@ from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
 import time
-import requests
 from urllib.parse import quote
 import re
+
+
+def logout_user():
+    """Clear all session state and logout user"""
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.success("Logged out successfully!")
+
+
+def preprocess_stock_dataframe(data):
+    """Standardize stock dataframe preprocessing"""
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = [col[0] for col in data.columns]
+    return data
 
 def format_percentage_with_color(percentage):
     """Format percentage with color coding - green for positive, red for negative"""
@@ -124,8 +137,7 @@ def get_stock_data(symbol, days):
         data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         
         # Flatten multi-level columns if they exist
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = [col[0] for col in data.columns]
+        data = preprocess_stock_dataframe(data)
         
         return data
     except Exception as e:
@@ -143,8 +155,7 @@ def get_historical_stock_data(symbol, start_year=2000):
         data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         
         # Flatten multi-level columns if they exist
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = [col[0] for col in data.columns]
+        data = preprocess_stock_dataframe(data)
         
         return data
     except Exception as e:
@@ -364,9 +375,7 @@ def profile_page(go_to, get_user_info, change_password):
     with col2:
         if st.button("Logout"):
             # Clear all session state
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.success("Logged out successfully!")
+            logout_user()
             st.rerun()
 
     st.divider()
@@ -480,9 +489,7 @@ def profile_page(go_to, get_user_info, change_password):
 
         # Security info
         st.write("**Security Status**")
-        st.write("Password protected")
-        st.write("Email verified")
-        st.write("Two-factor authentication: Not enabled (Coming soon)")
+        st.info("Account security features are currently in development.")
 
     with tab4:
         st.subheader("Recent Activity")
@@ -532,9 +539,7 @@ def profile_page(go_to, get_user_info, change_password):
         with col2:
             if st.button("Logout", type="primary", use_container_width=True):
                 # Clear all session state
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.success("Logged out successfully!")
+                logout_user()
                 st.rerun()
 
 
@@ -705,55 +710,12 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Stock Market Summary Section
     st.subheader("Global Stock Market Dashboard")
     
-    # Stock symbols organized by country
-    stock_data_by_country = {
-        "United States": [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
-            "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
-            "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
-            "NFLX", "CRM", "XOM", "LLY", "ABT", "ORCL", "ACN", "NVS", "CMCSA", "DIS",
-            "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
-            "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
-        ],
-        "United Kingdom": [
-            "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
-            "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
-            "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
-            "ADM.L", "ANTO.L", "AUTO.L", "AV.L", "BA.L", "BNZL.L", "BRBY.L", "CCL.L", "CPG.L", "CRDS.L",
-            "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
-            "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
-        ],
-        "Australia": [
-            "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
-            "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
-            "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
-            "BRG.AX", "BSL.AX", "BWP.AX", "CAR.AX", "CCP.AX", "CHC.AX", "CPU.AX", "CTX.AX", "CWN.AX", "DMP.AX",
-            "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
-            "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
-        ],
-        "Hong Kong": [
-            "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
-            "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
-            "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
-            "0291.HK", "0293.HK", "0322.HK", "0386.HK", "0390.HK", "0392.HK", "0688.HK", "0762.HK", "0823.HK", "0857.HK",
-            "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
-            "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
-        ],
-        "China": [
-            "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
-            "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
-            "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
-            "STO", "BEST", "QFIN", "LKNCY", "ZLAB", "CAAS", "CBPO", "CANG", "CAN", "CARS",
-            "CADC", "CXDC", "DQ", "EH", "FENG", "GSMG", "HEAR", "HCM", "HIMX", "HUIZ",
-            "JOBS", "LAIX", "LX", "NAAS", "NIU", "QTT", "RERE", "SOHU", "TOUR", "WDH"
-        ]
-    }
     
     # Fetch data for all countries (using 1-year period)
     days = 365  # 1 year
     all_countries_data = {}
     
-    for country, symbols in stock_data_by_country.items():
+    for country, symbols in STOCK_SYMBOLS_BY_COUNTRY.items():
         # Only take first 6 stocks for dashboard display
         top_symbols = symbols[:6]
         with st.spinner(f"Loading {country} stock data (1-year history)..."):
@@ -1140,20 +1102,8 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("My Portfolios")
     
     if sample_portfolios:
-        # Bubble sort portfolios by value (highest first)
-        def bubble_sort_portfolios_by_value(portfolios):
-            """Sort portfolios by value using bubble sort (highest to lowest)"""
-            n = len(portfolios)
-            for i in range(n):
-                for j in range(0, n - i - 1):
-                    # Compare adjacent portfolios by value (descending order)
-                    if portfolios[j]['value'] < portfolios[j + 1]['value']:
-                        # Swap portfolios
-                        portfolios[j], portfolios[j + 1] = portfolios[j + 1], portfolios[j]
-            return portfolios
-        
         # Sort portfolios by value (highest first)
-        sorted_portfolios = bubble_sort_portfolios_by_value(sample_portfolios.copy())
+        sorted_portfolios = sorted(sample_portfolios, key=lambda p: p['value'], reverse=True)
         
         # Portfolio cards
         for portfolio in sorted_portfolios:
@@ -2297,7 +2247,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         # Create columns for stock cards
         cols = st.columns(3)
         for idx, stock in enumerate(stocks):
-            with cols[idx % 2]:
+            with cols[idx % 3]:
                 symbol = stock['symbol']
                 shares = stock.get('shares', 1)
                 # Use the specific purchase_price field, fallback to 'price' for backward compatibility
