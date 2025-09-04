@@ -362,7 +362,7 @@ def profile_page(go_to, get_user_info, change_password):
         if st.button("← Back to Dashboard"):
             go_to("dashboard")
     with col2:
-        if st.button("🚪 Logout"):
+        if st.button("Logout"):
             # Clear all session state
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
@@ -530,7 +530,7 @@ def profile_page(go_to, get_user_info, change_password):
                 st.rerun()
 
         with col2:
-            if st.button("🚪 Logout", type="primary", use_container_width=True):
+            if st.button("Logout", type="primary", use_container_width=True):
                 # Clear all session state
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
@@ -586,7 +586,7 @@ def dashboard_page(go_to, get_user_info, change_password):
     st.divider()
 
     # Quick Actions Section at the top
-    st.subheader("🚀 Quick Actions")
+    st.subheader("Quick Actions")
     
     # Get user portfolios to determine what actions to show
     from login import get_user_portfolios
@@ -707,7 +707,7 @@ def dashboard_page(go_to, get_user_info, change_password):
     
     # Stock symbols organized by country
     stock_data_by_country = {
-        "🇺🇸 United States": [
+        "United States": [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
             "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
             "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
@@ -715,7 +715,7 @@ def dashboard_page(go_to, get_user_info, change_password):
             "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
             "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
         ],
-        "🇬🇧 United Kingdom": [
+        "United Kingdom": [
             "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
             "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
             "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
@@ -723,7 +723,7 @@ def dashboard_page(go_to, get_user_info, change_password):
             "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
             "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
         ],
-        "🇦🇺 Australia": [
+        "Australia": [
             "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
             "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
             "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
@@ -731,7 +731,7 @@ def dashboard_page(go_to, get_user_info, change_password):
             "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
             "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
         ],
-        "🇭🇰 Hong Kong": [
+        "Hong Kong": [
             "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
             "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
             "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
@@ -739,7 +739,7 @@ def dashboard_page(go_to, get_user_info, change_password):
             "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
             "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
         ],
-        "🇨🇳 China": [
+        "China": [
             "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
             "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
             "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
@@ -1218,7 +1218,7 @@ def portfolios_page(go_to, get_user_info, change_password):
                         
                         # Portfolio template for sharing
                         share_text = f"""
-🚀 Investment Portfolio Template: "{share_data['name']}"
+Investment Portfolio Template: "{share_data['name']}"
 
 📊 Portfolio Composition:
 🎯 {len(share_data['stocks'])} stocks: {', '.join(share_data['stocks'])}
@@ -1570,7 +1570,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
         # Call-to-action button
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🚀 Add Your First Stock", type="primary", use_container_width=True):
+            if st.button("Add Your First Stock", type="primary", use_container_width=True):
                 go_to("stock_search")
 
 
@@ -2119,7 +2119,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         # Empty state
         st.info("📝 No stocks in this portfolio. Add stocks to get started!")
         
-        if st.button("🚀 Add Your First Stock", type="primary", use_container_width=True):
+        if st.button("Add Your First Stock", type="primary", use_container_width=True):
             st.session_state.current_portfolio = {
                 '_id': portfolio_id,
                 'name': portfolio['portfolio_name'],
