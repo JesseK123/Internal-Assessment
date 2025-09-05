@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import yfinance as yf
 import pandas as pd
 import time
@@ -586,7 +586,7 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Dashboard metrics
     if user_info:
         days_since = (
-            datetime.utcnow() - user_info.get("created_at", datetime.utcnow())
+            datetime.now(timezone.utc) - user_info.get("created_at", datetime.now(timezone.utc))
         ).days
     st.divider()
 
