@@ -1,6 +1,6 @@
 import hashlib
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 from pymongo.errors import DuplicateKeyError
 import streamlit as st
@@ -126,7 +126,7 @@ def register_user(username, password, email):
             "salt": salt,
             "email": email.lower(),
             "role": "user",
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "last_login": None,
             "is_active": True,
         }
@@ -148,7 +148,7 @@ def update_last_login(username):
         if users is not None:
             users.update_one(
                 {"username": username},
-                {"$set": {"last_login": datetime.utcnow()}},
+                {"$set": {"last_login": datetime.now(timezone.utc)}},
             )
     except Exception as e:
         st.error(f"Error updating login time: {str(e)}")
@@ -226,8 +226,8 @@ def create_portfolio(username, portfolio_data):
             "portfolio_name": portfolio_data["name"],
             "countries": portfolio_data["countries"],
             "stocks": portfolio_data.get("stocks", []),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "total_value": 0,
             "is_active": True
         }
@@ -283,7 +283,7 @@ def update_portfolio(portfolio_id, update_data):
         if error:
             return error
         
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now(timezone.utc)
         
         result = portfolios.update_one(
             {"_id": ObjectId(portfolio_id)},
@@ -308,7 +308,7 @@ def delete_portfolio(portfolio_id, username):
         
         result = portfolios.update_one(
             {"_id": ObjectId(portfolio_id), "user_id": username},
-            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
         )
         
         if result.modified_count > 0:
@@ -340,7 +340,7 @@ def add_stock_to_portfolio(portfolio_id, stock_data):
             {"_id": ObjectId(portfolio_id)},
             {
                 "$push": {"stocks": stock_data},
-                "$set": {"updated_at": datetime.utcnow()}
+                "$set": {"updated_at": datetime.now(timezone.utc)}
             }
         )
         
@@ -364,7 +364,7 @@ def remove_stock_from_portfolio(portfolio_id, stock_symbol):
             {"_id": ObjectId(portfolio_id)},
             {
                 "$pull": {"stocks": {"symbol": stock_symbol}},
-                "$set": {"updated_at": datetime.utcnow()}
+                "$set": {"updated_at": datetime.now(timezone.utc)}
             }
         )
         
