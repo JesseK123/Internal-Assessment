@@ -5,9 +5,7 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 ## Features
 
 ### Security
-- **Password Hashing**: SHA-256 with unique salts
 - **Account Locking**: Automatic lockout after 5 failed attempts
-- **Password Strength**: Real-time validation with strength meter
 - **Input Validation**: Comprehensive email and username validation
 - **Connection Security**: Secure MongoDB connection handling
 
@@ -20,7 +18,6 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 
 ### Modern UI
 - **Responsive Design**: Clean, mobile-friendly interface
-- **Real-time Feedback**: Password strength indicators
 - **Status Indicators**: Connection and security status
 - **Enhanced Dashboard**: Activity tracking and settings
 - **Progress Animations**: Visual feedback for user actions
@@ -85,21 +82,12 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 
 ## Security Features
 
-### Password Requirements
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one lowercase letter
-- At least one number
-- At least one special character
-
 ### Account Protection
 - Account lockout after 5 failed login attempts
 - 15-minute lockout period
 - Automatic unlock after timeout
-- Password strength validation
 
 ### Data Protection
-- Passwords hashed with unique salts
 - Email addresses stored in lowercase
 - No sensitive data in logs
 - Secure database connections
@@ -144,7 +132,6 @@ A production-ready Streamlit application with MongoDB authentication, enhanced s
 ### Security
 - `is_account_locked(username)` - Check account lock status
 - `handle_failed_login(username)` - Handle failed login attempts
-- `validate_password_strength(password)` - Validate password strength
 
 ### User Management
 - `get_user_info(username)` - Get user profile information
