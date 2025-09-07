@@ -306,8 +306,7 @@ def register_page(go_to, register_user):
     email = st.text_input("Email", help="We'll never share your email")
     password = st.text_input(
         "Choose a password",
-        type="password",
-        help="Must be at least 8 characters with uppercase, lowercase, number and special character",
+        type="password"
     )
     confirm_password = st.text_input("Confirm password", type="password")
 
@@ -1132,7 +1131,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 st.info("Your portfolio has been created! You can now add stocks and track your investments.")
                 
                 # Get the created portfolio from database to get the real ID
-                            user_portfolios = get_user_portfolios(st.session_state.username)
+                user_portfolios = get_user_portfolios(st.session_state.username)
                 
                 # Find the newly created portfolio (most recent)
                 if user_portfolios:
@@ -1589,7 +1588,7 @@ def stock_search_page(go_to, get_user_info, change_password):
                                     st.balloons()
                                     
                                     # Redirect to My Portfolio (My Stocks) after balloons
-                                                        time.sleep(2)  # Wait for balloons animation
+                                    time.sleep(2)  # Wait for balloons animation
                                     go_to("my_stocks")
                                 else:
                                     st.error(f"Failed to save to database: {db_message}")
