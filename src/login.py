@@ -16,22 +16,6 @@ def get_collection_safely(collection_getter):
     return collection, None
 
 
-def hash_password(password, salt=None):
-    """Hash a password with salt using SHA-256"""
-    if salt is None:
-        salt = secrets.token_hex(16)
-
-    # Combine password and salt
-    salted_password = password + salt
-    hashed = hashlib.sha256(salted_password.encode()).hexdigest()
-
-    return hashed, salt
-
-
-def verify_password(password, stored_hash, salt):
-    """Verify a password against stored hash and salt"""
-    hashed, _ = hash_password(password, salt)
-    return hashed == stored_hash
 
 
 def verify_user(username, password):
@@ -43,7 +27,7 @@ def verify_user(username, password):
 
         user = users.find_one({"username": username})
         if user:
-            return verify_password(password, user["password"], user.get("salt", ""))
+            return password == user["password"]
         return False
     except Exception as e:
         st.error(f"Authentication error: {str(e)}")
@@ -63,22 +47,6 @@ def user_exists(username):
         return True  # Fail safe
 
 
-def validate_password_strength(password):
-    """Validate password meets security requirements"""
-    errors = []
-
-    if len(password) < 8:
-        errors.append("Password must be at least 8 characters long")
-    if not any(c.isupper() for c in password):
-        errors.append("Password must contain at least one uppercase letter")
-    if not any(c.islower() for c in password):
-        errors.append("Password must contain at least one lowercase letter")
-    if not any(c.isdigit() for c in password):
-        errors.append("Password must contain at least one number")
-    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
-        errors.append("Password must contain at least one special character")
-
-    return errors
 
 
 def validate_email(email):
@@ -111,19 +79,10 @@ def register_user(username, password, email):
         if users.find_one({"email": email}):
             return False, "Email already registered"
 
-        # Validate password strength
-        password_errors = validate_password_strength(password)
-        if password_errors:
-            return False, "; ".join(password_errors)
-
-        # Hash password with salt
-        hashed_password, salt = hash_password(password)
-
         # Create user document
         user_doc = {
             "username": username,
-            "password": hashed_password,
-            "salt": salt,
+            "password": password,
             "email": email.lower(),
             "role": "user",
             "created_at": datetime.now(timezone.utc),
@@ -183,17 +142,11 @@ def change_password(username, old_password, new_password):
         if not verify_user(username, old_password):
             return False, "Current password is incorrect"
 
-        password_errors = validate_password_strength(new_password)
-        if password_errors:
-            return False, "; ".join(password_errors)
-
-        hashed_password, salt = hash_password(new_password)
-
         users = get_users_collection()
         if users is not None:
             users.update_one(
                 {"username": username},
-                {"$set": {"password": hashed_password, "salt": salt}},
+                {"$set": {"password": new_password}},
             )
             return True, "Password changed successfully"
 

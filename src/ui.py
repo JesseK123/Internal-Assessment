@@ -4,8 +4,9 @@ import yfinance as yf
 import pandas as pd
 import time
 from urllib.parse import quote
-import re
-from constants import STOCK_SYMBOLS_BY_COUNTRY
+from login import (delete_portfolio, get_user_portfolios, create_portfolio, 
+                   get_portfolio_by_id, update_portfolio, remove_stock_from_portfolio, 
+                   add_stock_to_portfolio)
 
 
 def logout_user():
@@ -46,7 +47,6 @@ def show_delete_confirmation_popup():
     with col_confirm:
         if st.button("Yes, Delete", type="primary", use_container_width=True):
             try:
-                from login import delete_portfolio
                 success, message = delete_portfolio(portfolio_id, st.session_state.username)
                 
                 if success:
@@ -96,6 +96,37 @@ def get_company_news_link(symbol):
         st.error(f"Error generating news link: {str(e)}")
         return None
 
+# Stock symbols by country
+STOCK_SYMBOLS_BY_COUNTRY = {
+    "United States": [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
+        "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
+        "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC"
+    ],
+    "United Kingdom": [
+        "SHEL.L", "AZN.L", "BP.L", "ULVR.L", "HSBA.L", "VOD.L", "RIO.L", "LLOY.L",
+        "BT-A.L", "GSK.L", "BARC.L", "NG.L", "DGE.L", "REL.L", "RB.L", "PRU.L",
+        "NWG.L", "CRH.L", "IAG.L", "GLEN.L", "LSEG.L", "III.L", "BA.L", "RTO.L",
+        "CPG.L", "ENT.L", "EXPN.L", "FRES.L", "RR.L", "SSE.L"
+    ],
+    "Australia": [
+        "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WES.AX", "FMG.AX",
+        "WOW.AX", "RIO.AX", "MQG.AX", "TLS.AX", "WDS.AX", "GMG.AX", "COL.AX", "STO.AX",
+        "REA.AX", "QBE.AX", "TCL.AX", "ALL.AX", "XRO.AX", "JHX.AX", "MIN.AX", "RHC.AX",
+        "WTC.AX", "SHL.AX", "NCM.AX", "IAG.AX", "S32.AX", "ASX.AX"
+    ],
+    "Hong Kong": [
+        "0700.HK", "0388.HK", "0005.HK", "0941.HK", "1299.HK", "2318.HK", "0003.HK", "0939.HK",
+        "1398.HK", "2628.HK", "0883.HK", "0175.HK", "0011.HK", "0016.HK", "0267.HK", "1972.HK",
+        "0288.HK", "0002.HK", "0001.HK", "1113.HK", "0006.HK", "1997.HK", "0101.HK", "0012.HK",
+        "0017.HK", "0004.HK", "0868.HK", "1109.HK", "0823.HK", "1038.HK"
+    ],
+    "China": [
+        "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "XPEV", "LI", "NTES", "IQ",
+        "YMM", "DIDI", "TME", "VIPS", "WB", "ZTO", "BGNE", "EDU", "TAL", "YY",
+        "HUYA", "DOYU", "KC", "GOTU", "RLX", "DADA", "TUYA", "BZUN", "TIGR", "FUTU"
+    ]
+}
 
 # Stock data fetching function
 @st.cache_data(ttl=86400)  # Cache for 24 hours (86400 seconds)
@@ -260,17 +291,6 @@ def login_page(go_to, verify_user, update_last_login):
                 else:
                     st.error("Invalid credentials")
 
-    # Password strength indicator
-    if password:
-        strength = calculate_password_strength(password)
-        st.progress(strength / 100)
-        if strength < 50:
-            st.caption("Weak password")
-        elif strength < 80:
-            st.caption("Medium password")
-        else:
-            st.caption("Strong password")
-
     st.divider()
 
     st.write("Don't have an account?")
@@ -290,21 +310,6 @@ def register_page(go_to, register_user):
         help="Must be at least 8 characters with uppercase, lowercase, number and special character",
     )
     confirm_password = st.text_input("Confirm password", type="password")
-
-    # Real-time password strength indicator
-    if password:
-        strength = calculate_password_strength(password)
-        progress_bar = st.progress(strength / 100)
-        if strength < 30:
-            st.caption("Very weak password")
-        elif strength < 50:
-            st.caption("Weak password")
-        elif strength < 70:
-            st.caption("Medium password")
-        elif strength < 90:
-            st.caption("Strong password")
-        else:
-            st.caption("Very strong password")
 
     # Password match indicator
     if password and confirm_password:
@@ -330,188 +335,6 @@ def register_page(go_to, register_user):
             go_to("login")
 
 
-def profile_page(go_to, get_user_info, change_password):
-    """Render the profile page with user information and settings"""
-    st.title("Profile")
-
-    # Get user info
-    user_info = get_user_info(st.session_state.username)
-
-    # Navigation buttons
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("← Back to Dashboard"):
-            go_to("dashboard")
-    with col2:
-        if st.button("Logout"):
-            # Clear all session state
-            logout_user()
-            st.rerun()
-
-    st.divider()
-
-    # Profile tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Profile Information", "Settings", "Security", "Activity", "Session"])
-
-    with tab1:
-        st.subheader("Profile Information")
-        
-        if user_info:
-            # Profile photo section
-            col_photo, col_info = st.columns([1, 2])
-            
-            with col_photo:
-                st.write("**Profile Photo**")
-                
-                # Check if user has profile photo
-                if user_info.get('profile_photo'):
-                    st.image(user_info['profile_photo'], width=150, caption="Current Photo")
-                else:
-                    # Default avatar placeholder
-                    st.write("No photo")
-                    st.caption("No photo uploaded")
-                
-                # Photo upload
-                uploaded_file = st.file_uploader(
-                    "Upload Profile Photo", 
-                    type=['png', 'jpg', 'jpeg', 'gif'],
-                    help="Max file size: 5MB"
-                )
-                
-                if uploaded_file is not None:
-                    if uploaded_file.size > 5 * 1024 * 1024:  # 5MB limit
-                        st.error("File size too large. Please upload a file smaller than 5MB.")
-                    else:
-                        # Display preview
-                        st.image(uploaded_file, width=150, caption="Preview")
-                        
-                        if st.button("Save Photo"):
-                            # In a real app, you'd upload to cloud storage (AWS S3, etc.)
-                            # For demo, we'll just show success
-                            st.success("Profile photo updated!")
-                            st.info("Note: Photo upload functionality would connect to cloud storage in production")
-            
-            with col_info:
-                st.write(f"**Username:** {user_info['username']}")
-                st.write(f"**Email:** {user_info['email']}")
-                st.write(f"**Role:** {user_info.get('role', 'user').title()}")
-                
-                if user_info.get("created_at"):
-                    st.write(
-                        f"**Member since:** {user_info['created_at'].strftime('%B %d, %Y')}"
-                    )
-                st.write(
-                    f"**Account Status:** {'Active' if user_info.get('is_active') else 'Inactive'}"
-                )
-                
-
-        # Profile update forms
-        col_left, col_right = st.columns(2)
-        
-        with col_left:
-            with st.expander("Update Email"):
-                new_email = st.text_input(
-                    "New Email", value=user_info.get("email", "") if user_info else ""
-                )
-                if st.button("Update Email", key="update_email"):
-                    st.info("Email update functionality coming soon...")
-        
-
-    with tab2:
-        st.subheader("Application Settings")
-
-        # Theme selection
-        theme = st.selectbox("Theme", ["Light", "Dark", "Auto"])
-
-        # Notification preferences
-        st.subheader("Notifications")
-        email_notifications = st.checkbox("Email notifications", value=True)
-        push_notifications = st.checkbox("Push notifications", value=False)
-
-        if st.button("Save Settings"):
-            st.success("Settings saved successfully!")
-
-    with tab3:
-        st.subheader("Security Settings")
-
-        # Password change
-        st.write("**Change Password**")
-        with st.form("change_password"):
-            current_password = st.text_input("Current Password", type="password")
-            new_password = st.text_input("New Password", type="password")
-            confirm_new_password = st.text_input(
-                "Confirm New Password", type="password"
-            )
-
-            if st.form_submit_button("Change Password"):
-                if new_password != confirm_new_password:
-                    st.error("New passwords don't match")
-                else:
-                    success, message = change_password(
-                        st.session_state.username, current_password, new_password
-                    )
-                    if success:
-                        st.success(message)
-                    else:
-                        st.error(message)
-
-        st.divider()
-
-        # Security info
-        st.write("**Security Status**")
-        st.info("Account security features are currently in development.")
-
-    with tab4:
-        st.subheader("Recent Activity")
-
-        # Mock activity data - in real app, fetch from database
-        activity_data = [
-            {"action": "Login", "timestamp": datetime.now(), "ip": "192.168.1.1"},
-            {
-                "action": "Password Changed",
-                "timestamp": datetime.now(),
-                "ip": "192.168.1.1",
-            },
-            {
-                "action": "Profile Updated",
-                "timestamp": datetime.now(),
-                "ip": "192.168.1.1",
-            },
-        ]
-
-        for activity in activity_data:
-            with st.container():
-                col1, col2, col3 = st.columns([2, 2, 1])
-                with col1:
-                    st.write(f"• {activity['action']}")
-                with col2:
-                    st.write(activity["timestamp"].strftime("%Y-%m-%d %H:%M"))
-                with col3:
-                    st.write(activity["ip"])
-
-    with tab5:
-        st.subheader("Session Management")
-        
-        # Session info
-        st.write("**Current Session**")
-        st.write(f"Username: {st.session_state.username}")
-        st.write(f"Page: {st.session_state.get('page', 'dashboard')}")
-        
-        st.divider()
-        
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("Refresh Session", type="secondary", use_container_width=True):
-                st.success("Session refreshed!")
-                st.rerun()
-
-        with col2:
-            if st.button("Logout", type="primary", use_container_width=True):
-                # Clear all session state
-                logout_user()
-                st.rerun()
-
 
 def dashboard_page(go_to, get_user_info, change_password):
     """Render the dashboard page with enhanced features"""
@@ -529,15 +352,11 @@ def dashboard_page(go_to, get_user_info, change_password):
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", type="primary", use_container_width=True):
+            logout_user()
+            st.rerun()
         
         st.divider()
-        
-        # Quick stats
-        st.subheader("Quick Info")
-        st.caption("Market data updated in real-time")
-        st.caption("Auto-refresh every 5 minutes")
     
     # Main dashboard title
     st.title("Dashboard")
@@ -555,16 +374,17 @@ def dashboard_page(go_to, get_user_info, change_password):
 
     # Dashboard metrics
     if user_info:
-        days_since = (
-            datetime.now(timezone.utc) - user_info.get("created_at", datetime.now(timezone.utc))
-        ).days
+        created_at = user_info.get("created_at", datetime.now(timezone.utc))
+        if isinstance(created_at, datetime):
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+        days_since = (datetime.now(timezone.utc) - created_at).days
     st.divider()
 
     # Quick Actions Section at the top
     st.subheader("Quick Actions")
     
     # Get user portfolios to determine what actions to show
-    from login import get_user_portfolios
     user_portfolios = get_user_portfolios(st.session_state.username)
     
     if user_portfolios:
@@ -667,7 +487,6 @@ def dashboard_page(go_to, get_user_info, change_password):
         
         # Display as a clean table
         if portfolio_data:
-            import pandas as pd
             df = pd.DataFrame(portfolio_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
                 
@@ -804,7 +623,6 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         
         # Time range - Fixed for detailed analysis
         st.info("**Analysis Period:** 10 Years (3,650 days)")
-        days = 90  # Keep for any remaining sidebar functionality
         
         # Analysis options
         st.subheader("Analysis Tools")
@@ -820,8 +638,9 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", type="primary", use_container_width=True):
+            logout_user()
+            st.rerun()
     
     # Main analysis content
     st.title(f"{selected_stock} - Detailed Analysis")
@@ -999,8 +818,6 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("Create New Portfolio", use_container_width=True):
             go_to("create_portfolio")
         
-        if st.button("Portfolio Analytics", use_container_width=True):
-            st.session_state.show_analytics = True
             
         st.divider()
         
@@ -1011,8 +828,9 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("Stock Analysis", use_container_width=True):
             go_to("stock_analysis")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", type="primary", use_container_width=True):
+            logout_user()
+            st.rerun()
     
     # Main portfolio content
     st.title("Portfolio Management")
@@ -1021,7 +839,6 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("Summary")
     
     # Fetch portfolios from database
-    from login import get_user_portfolios
     
     user_portfolios = get_user_portfolios(st.session_state.username)
     
@@ -1222,33 +1039,6 @@ View Template: {portfolio_url}
                     st.session_state.show_create_form = False
                     st.rerun()
     
-    # Portfolio analytics
-    if st.session_state.get("show_analytics", False):
-        st.subheader("📊 Portfolio Analytics")
-        
-        # Sample analytics data
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Portfolio Performance (Last 30 Days)**")
-            # Sample data for demonstration
-            performance_data = pd.DataFrame({
-                'Date': pd.date_range('2024-01-01', periods=30),
-                'Total Value': [20000 + i*100 + (i%5)*50 for i in range(30)]
-            })
-            st.line_chart(performance_data.set_index('Date'))
-        
-        with col2:
-            st.write("**Asset Allocation**")
-            allocation_data = pd.DataFrame({
-                'Asset': ['Technology', 'Healthcare', 'Finance', 'Energy', 'Consumer'],
-                'Allocation': [40, 25, 15, 10, 10]
-            })
-            st.bar_chart(allocation_data.set_index('Asset'))
-        
-        if st.button("Hide Analytics"):
-            st.session_state.show_analytics = False
-            st.rerun()
 
 
 def create_portfolio_page(go_to, get_user_info, change_password):
@@ -1267,8 +1057,9 @@ def create_portfolio_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", type="primary", use_container_width=True):
+            logout_user()
+            st.rerun()
     
     # Main content
     st.title("Create New Portfolio")
@@ -1319,7 +1110,6 @@ def create_portfolio_page(go_to, get_user_info, change_password):
     if submitted:
         if portfolio_name and selected_countries:
             # Create portfolio in database
-            from login import create_portfolio
             
             portfolio_data = {
                 'name': portfolio_name,
@@ -1342,8 +1132,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 st.info("Your portfolio has been created! You can now add stocks and track your investments.")
                 
                 # Get the created portfolio from database to get the real ID
-                from login import get_user_portfolios
-                user_portfolios = get_user_portfolios(st.session_state.username)
+                            user_portfolios = get_user_portfolios(st.session_state.username)
                 
                 # Find the newly created portfolio (most recent)
                 if user_portfolios:
@@ -1355,7 +1144,6 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                     st.session_state.current_portfolio['_id'] = 'temp_id'
                 
                 # Auto redirect to my stocks page
-                import time
                 time.sleep(2)
                 go_to("my_stocks")
             else:
@@ -1389,8 +1177,6 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("Add Stock", use_container_width=True, type="primary"):
             go_to("stock_search")
         
-        if st.button("📊 Portfolio Analytics", use_container_width=True):
-            st.info("Portfolio analytics coming soon!")
         
         st.divider()
         
@@ -1401,8 +1187,9 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", type="primary", use_container_width=True):
+            logout_user()
+            st.rerun()
     
     # Main content
     st.title("My Portfolio")
@@ -1412,7 +1199,6 @@ def my_stocks_page(go_to, get_user_info, change_password):
     if 'current_portfolio' in st.session_state:
         portfolio_id = st.session_state.current_portfolio.get('_id')
         if portfolio_id and portfolio_id != 'temp_id':
-            from login import get_portfolio_by_id
             portfolio = get_portfolio_by_id(portfolio_id)
         
         if not portfolio:
@@ -1469,7 +1255,6 @@ def my_stocks_page(go_to, get_user_info, change_password):
                         # Remove from database
                         portfolio_id = st.session_state.current_portfolio.get('_id')
                         if portfolio_id and portfolio_id != 'temp_id':
-                            from login import remove_stock_from_portfolio
                             success, message = remove_stock_from_portfolio(portfolio_id, stock['symbol'])
                             if success:
                                 st.success(f"Removed {stock['symbol']} from portfolio")
@@ -1795,7 +1580,6 @@ def stock_search_page(go_to, get_user_info, change_password):
                             st.session_state.current_portfolio['stocks'].append(new_stock)
                             
                             # Save to MongoDB database
-                            from login import add_stock_to_portfolio
                             portfolio_id = st.session_state.current_portfolio.get('_id')
                             
                             if portfolio_id and portfolio_id != 'temp_id':
@@ -1805,8 +1589,7 @@ def stock_search_page(go_to, get_user_info, change_password):
                                     st.balloons()
                                     
                                     # Redirect to My Portfolio (My Stocks) after balloons
-                                    import time
-                                    time.sleep(2)  # Wait for balloons animation
+                                                        time.sleep(2)  # Wait for balloons animation
                                     go_to("my_stocks")
                                 else:
                                     st.error(f"Failed to save to database: {db_message}")
@@ -1837,7 +1620,6 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         return
     
     # Get portfolio data from database
-    from login import get_portfolio_by_id, update_portfolio, remove_stock_from_portfolio
     
     portfolio_id = st.session_state.edit_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
@@ -2059,7 +1841,6 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         return
     
     # Get portfolio data from database
-    from login import get_portfolio_by_id
     
     portfolio_id = st.session_state.view_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
@@ -2270,29 +2051,3 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         st.warning("No stock details available")
 
 
-def calculate_password_strength(password):
-    """Calculate password strength score (0-100)"""
-    if not password:
-        return 0
-
-    score = 0
-
-    # Length scoring
-    if len(password) >= 8:
-        score += 25
-    elif len(password) >= 6:
-        score += 15
-    elif len(password) >= 4:
-        score += 10
-
-    # Character variety scoring
-    if any(c.isupper() for c in password):
-        score += 20
-    if any(c.islower() for c in password):
-        score += 20
-    if any(c.isdigit() for c in password):
-        score += 20
-    if any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
-        score += 15
-
-    return min(score, 100)
