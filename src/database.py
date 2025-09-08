@@ -44,9 +44,9 @@ class DatabaseConfig:
 
                 self._client = MongoClient(
                     uri,
-                    serverSelectionTimeoutMS=5000,
-                    connectTimeoutMS=10000,
-                    socketTimeoutMS=10000,
+                    serverSelectionTimeoutMS=30000,
+                    connectTimeoutMS=20000,
+                    socketTimeoutMS=20000,
                     maxPoolSize=10,
                 )
 
