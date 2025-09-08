@@ -20,12 +20,16 @@ class DatabaseConfig:
     @property
     def connection_string(self):
         """Get MongoDB connection string from environment"""
-        # Try different environment variable names
-        uri = (os.getenv("MONGO_URI"))
+        # Try different environment variable names in order of preference
+        uri = (os.getenv("MONGO_URI") or 
+               os.getenv("MONGODB_URI") or 
+               os.getenv("DATABASE_URL") or
+               os.getenv("MONGODB_CONNECTION_STRING") or
+               os.getenv("DB_URI"))
         
         if not uri:
             st.error(
-                "⚠️ MongoDB connection string not found. Please set MONGO_URI environment variable."
+                "⚠️ MongoDB connection string not found. Please set one of: MONGO_URI, MONGODB_URI, DATABASE_URL, MONGODB_CONNECTION_STRING, or DB_URI environment variable."
             )
             return None
 

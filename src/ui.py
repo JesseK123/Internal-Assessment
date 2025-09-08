@@ -7,86 +7,6 @@ import requests
 from urllib.parse import quote
 import re
 
-def calculate_password_strength(password):
-    """Calculate password strength score from 0-100"""
-    if not password:
-        return 0
-    
-    score = 0
-    
-    # Length scoring (40 points max)
-    length = len(password)
-    if length >= 8:
-        score += 40
-    elif length >= 6:
-        score += 30
-    elif length >= 4:
-        score += 20
-    else:
-        score += 10
-    
-    # Character variety scoring (60 points max)
-    has_lower = bool(re.search(r'[a-z]', password))
-    has_upper = bool(re.search(r'[A-Z]', password))
-    has_digit = bool(re.search(r'\d', password))
-    has_special = bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password))
-    
-    variety_count = sum([has_lower, has_upper, has_digit, has_special])
-    
-    if variety_count == 4:
-        score += 60
-    elif variety_count == 3:
-        score += 45
-    elif variety_count == 2:
-        score += 30
-    elif variety_count == 1:
-        score += 15
-    
-    return min(score, 100)
-
-def get_bulk_current_prices(symbols):
-    """Fetch current prices for multiple symbols efficiently"""
-    prices = {}
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                prices[symbol] = float(hist['Close'].iloc[-1])
-        except:
-            pass
-    return prices
-
-def calculate_portfolio_performance(portfolio, current_prices=None):
-    """Calculate portfolio performance based on purchase vs current prices"""
-    stocks = portfolio.get('stocks', [])
-    if not stocks:
-        return 0, 0, 0  # total_value, change, change_pct
-    
-    total_purchase_value = 0
-    total_current_value = 0
-    
-    # Use provided current prices or fetch them if not provided
-    if current_prices is None:
-        symbols = [stock['symbol'] for stock in stocks]
-        current_prices = get_bulk_current_prices(symbols)
-    
-    for stock in stocks:
-        symbol = stock['symbol']
-        shares = stock.get('shares', 1)
-        purchase_price = stock.get('purchase_price', stock.get('price', 0))
-        
-        # Use live current price if available, otherwise fallback to stored current_price, then purchase_price
-        current_price = current_prices.get(symbol) or stock.get('current_price') or purchase_price
-        
-        total_purchase_value += purchase_price * shares
-        total_current_value += current_price * shares
-    
-    change = total_current_value - total_purchase_value
-    change_pct = (change / total_purchase_value * 100) if total_purchase_value > 0 else 0
-    
-    return total_current_value, change, change_pct
-
 def format_percentage_with_color(percentage):
     """Format percentage with color coding - green for positive, red for negative"""
     if percentage > 0:
@@ -986,31 +906,19 @@ def portfolios_page(go_to, get_user_info, change_password):
     
     # Convert database portfolios to display format
     sample_portfolios = []
-    
-    if user_portfolios:
-        with st.spinner("Loading portfolio performance..."):
-            # Get all unique symbols across all portfolios for bulk price fetching
-            all_symbols = set()
-            for portfolio in user_portfolios:
-                for stock in portfolio.get('stocks', []):
-                    all_symbols.add(stock['symbol'])
-            
-            # Fetch current prices for all symbols at once
-            current_prices = get_bulk_current_prices(list(all_symbols))
-            
-            # Calculate performance for each portfolio
-            for portfolio in user_portfolios:
-                total_value, change, change_pct = calculate_portfolio_performance(portfolio, current_prices)
-                
-                sample_portfolios.append({
-                    "_id": str(portfolio['_id']),
-                    "name": portfolio['portfolio_name'],
-                    "created": portfolio['created_at'].strftime('%Y-%m-%d') if portfolio.get('created_at') else "Unknown",
-                    "value": total_value,
-                    "change": change,
-                    "change_pct": change_pct,
-                    "stocks": [stock['symbol'] for stock in portfolio.get('stocks', [])]
-                })
+    for portfolio in user_portfolios:
+        # Calculate portfolio value from stocks
+        total_value = sum(stock.get('price', 0) * stock.get('shares', 1) for stock in portfolio.get('stocks', []))
+        
+        sample_portfolios.append({
+            "_id": str(portfolio['_id']),
+            "name": portfolio['portfolio_name'],
+            "created": portfolio['created_at'].strftime('%Y-%m-%d') if portfolio.get('created_at') else "Unknown",
+            "value": total_value,
+            "change": 0,  # Placeholder - would calculate from historical data
+            "change_pct": 0,  # Placeholder - would calculate from historical data
+            "stocks": [stock['symbol'] for stock in portfolio.get('stocks', [])]
+        })
     
     if sample_portfolios:
         # Total portfolio value
@@ -2251,5 +2159,3 @@ def portfolio_details_page(go_to, get_user_info, change_password):
     
     else:
         st.warning("No stock details available")
-
-
