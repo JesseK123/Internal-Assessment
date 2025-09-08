@@ -1,26 +1,91 @@
 import streamlit as st
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
 import time
+import requests
 from urllib.parse import quote
-from login import (delete_portfolio, get_user_portfolios, create_portfolio, 
-                   get_portfolio_by_id, update_portfolio, remove_stock_from_portfolio, 
-                   add_stock_to_portfolio)
+import re
 
+def calculate_password_strength(password):
+    """Calculate password strength score from 0-100"""
+    if not password:
+        return 0
+    
+    score = 0
+    
+    # Length scoring (40 points max)
+    length = len(password)
+    if length >= 8:
+        score += 40
+    elif length >= 6:
+        score += 30
+    elif length >= 4:
+        score += 20
+    else:
+        score += 10
+    
+    # Character variety scoring (60 points max)
+    has_lower = bool(re.search(r'[a-z]', password))
+    has_upper = bool(re.search(r'[A-Z]', password))
+    has_digit = bool(re.search(r'\d', password))
+    has_special = bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password))
+    
+    variety_count = sum([has_lower, has_upper, has_digit, has_special])
+    
+    if variety_count == 4:
+        score += 60
+    elif variety_count == 3:
+        score += 45
+    elif variety_count == 2:
+        score += 30
+    elif variety_count == 1:
+        score += 15
+    
+    return min(score, 100)
 
-def logout_user():
-    """Clear all session state and logout user"""
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.success("Logged out successfully!")
+def get_bulk_current_prices(symbols):
+    """Fetch current prices for multiple symbols efficiently"""
+    prices = {}
+    for symbol in symbols:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                prices[symbol] = float(hist['Close'].iloc[-1])
+        except:
+            pass
+    return prices
 
-
-def preprocess_stock_dataframe(data):
-    """Standardize stock dataframe preprocessing"""
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = [col[0] for col in data.columns]
-    return data
+def calculate_portfolio_performance(portfolio, current_prices=None):
+    """Calculate portfolio performance based on purchase vs current prices"""
+    stocks = portfolio.get('stocks', [])
+    if not stocks:
+        return 0, 0, 0  # total_value, change, change_pct
+    
+    total_purchase_value = 0
+    total_current_value = 0
+    
+    # Use provided current prices or fetch them if not provided
+    if current_prices is None:
+        symbols = [stock['symbol'] for stock in stocks]
+        current_prices = get_bulk_current_prices(symbols)
+    
+    for stock in stocks:
+        symbol = stock['symbol']
+        shares = stock.get('shares', 1)
+        purchase_price = stock.get('purchase_price', stock.get('price', 0))
+        
+        # Use live current price if available, otherwise fallback to stored current_price, then purchase_price
+        current_price = current_prices.get(symbol) or stock.get('current_price') or purchase_price
+        
+        total_purchase_value += purchase_price * shares
+        total_current_value += current_price * shares
+    
+    change = total_current_value - total_purchase_value
+    change_pct = (change / total_purchase_value * 100) if total_purchase_value > 0 else 0
+    
+    return total_current_value, change, change_pct
 
 def format_percentage_with_color(percentage):
     """Format percentage with color coding - green for positive, red for negative"""
@@ -47,6 +112,7 @@ def show_delete_confirmation_popup():
     with col_confirm:
         if st.button("Yes, Delete", type="primary", use_container_width=True):
             try:
+                from login import delete_portfolio
                 success, message = delete_portfolio(portfolio_id, st.session_state.username)
                 
                 if success:
@@ -98,11 +164,34 @@ def get_company_news_link(symbol):
 
 # Stock symbols by country
 STOCK_SYMBOLS_BY_COUNTRY = {
-    "United States": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "JPM", "V", "WMT"],
-    "United Kingdom": ["SHEL.L", "AZN.L", "BP.L", "ULVR.L", "HSBA.L", "VOD.L", "RIO.L", "LLOY.L"],
-    "Australia": ["CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX"],
-    "Hong Kong": ["0700.HK", "0388.HK", "0005.HK", "0941.HK", "1299.HK", "2318.HK"],
-    "China": ["BABA", "JD", "BIDU", "NIO", "PDD", "BILI"]
+    "United States": [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
+        "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
+        "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC"
+    ],
+    "United Kingdom": [
+        "SHEL.L", "AZN.L", "BP.L", "ULVR.L", "HSBA.L", "VOD.L", "RIO.L", "LLOY.L",
+        "BT-A.L", "GSK.L", "BARC.L", "NG.L", "DGE.L", "REL.L", "RB.L", "PRU.L",
+        "NWG.L", "CRH.L", "IAG.L", "GLEN.L", "LSEG.L", "III.L", "BA.L", "RTO.L",
+        "CPG.L", "ENT.L", "EXPN.L", "FRES.L", "RR.L", "SSE.L"
+    ],
+    "Australia": [
+        "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WES.AX", "FMG.AX",
+        "WOW.AX", "RIO.AX", "MQG.AX", "TLS.AX", "WDS.AX", "GMG.AX", "COL.AX", "STO.AX",
+        "REA.AX", "QBE.AX", "TCL.AX", "ALL.AX", "XRO.AX", "JHX.AX", "MIN.AX", "RHC.AX",
+        "WTC.AX", "SHL.AX", "NCM.AX", "IAG.AX", "S32.AX", "ASX.AX"
+    ],
+    "Hong Kong": [
+        "0700.HK", "0388.HK", "0005.HK", "0941.HK", "1299.HK", "2318.HK", "0003.HK", "0939.HK",
+        "1398.HK", "2628.HK", "0883.HK", "0175.HK", "0011.HK", "0016.HK", "0267.HK", "1972.HK",
+        "0288.HK", "0002.HK", "0001.HK", "1113.HK", "0006.HK", "1997.HK", "0101.HK", "0012.HK",
+        "0017.HK", "0004.HK", "0868.HK", "1109.HK", "0823.HK", "1038.HK"
+    ],
+    "China": [
+        "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "XPEV", "LI", "NTES", "IQ",
+        "YMM", "DIDI", "TME", "VIPS", "WB", "ZTO", "BGNE", "EDU", "TAL", "YY",
+        "HUYA", "DOYU", "KC", "GOTU", "RLX", "DADA", "TUYA", "BZUN", "TIGR", "FUTU"
+    ]
 }
 
 # Stock data fetching function
@@ -115,7 +204,8 @@ def get_stock_data(symbol, days):
         data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         
         # Flatten multi-level columns if they exist
-        data = preprocess_stock_dataframe(data)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col[0] for col in data.columns]
         
         return data
     except Exception as e:
@@ -133,7 +223,8 @@ def get_historical_stock_data(symbol, start_year=2000):
         data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         
         # Flatten multi-level columns if they exist
-        data = preprocess_stock_dataframe(data)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col[0] for col in data.columns]
         
         return data
     except Exception as e:
@@ -268,6 +359,17 @@ def login_page(go_to, verify_user, update_last_login):
                 else:
                     st.error("Invalid credentials")
 
+    # Password strength indicator
+    if password:
+        strength = calculate_password_strength(password)
+        st.progress(strength / 100)
+        if strength < 50:
+            st.caption("Weak password")
+        elif strength < 80:
+            st.caption("Medium password")
+        else:
+            st.caption("Strong password")
+
     st.divider()
 
     st.write("Don't have an account?")
@@ -283,9 +385,25 @@ def register_page(go_to, register_user):
     email = st.text_input("Email", help="We'll never share your email")
     password = st.text_input(
         "Choose a password",
-        type="password"
+        type="password",
+        help="Must be at least 8 characters with uppercase, lowercase, number and special character",
     )
     confirm_password = st.text_input("Confirm password", type="password")
+
+    # Real-time password strength indicator
+    if password:
+        strength = calculate_password_strength(password)
+        progress_bar = st.progress(strength / 100)
+        if strength < 30:
+            st.caption("Very weak password")
+        elif strength < 50:
+            st.caption("Weak password")
+        elif strength < 70:
+            st.caption("Medium password")
+        elif strength < 90:
+            st.caption("Strong password")
+        else:
+            st.caption("Very strong password")
 
     # Password match indicator
     if password and confirm_password:
@@ -311,7 +429,6 @@ def register_page(go_to, register_user):
             go_to("login")
 
 
-
 def dashboard_page(go_to, get_user_info, change_password):
     """Render the dashboard page with enhanced features"""
     
@@ -328,11 +445,15 @@ def dashboard_page(go_to, get_user_info, change_password):
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Logout", type="primary", use_container_width=True):
-            logout_user()
-            st.rerun()
+        if st.button("Profile & Settings", use_container_width=True):
+            go_to("profile")
         
         st.divider()
+        
+        # Quick stats
+        st.subheader("Quick Info")
+        st.caption("Market data updated in real-time")
+        st.caption("Auto-refresh every 5 minutes")
     
     # Main dashboard title
     st.title("Dashboard")
@@ -350,17 +471,16 @@ def dashboard_page(go_to, get_user_info, change_password):
 
     # Dashboard metrics
     if user_info:
-        created_at = user_info.get("created_at", datetime.now(timezone.utc))
-        if isinstance(created_at, datetime):
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-        days_since = (datetime.now(timezone.utc) - created_at).days
+        days_since = (
+            datetime.utcnow() - user_info.get("created_at", datetime.utcnow())
+        ).days
     st.divider()
 
     # Quick Actions Section at the top
     st.subheader("Quick Actions")
     
     # Get user portfolios to determine what actions to show
+    from login import get_user_portfolios
     user_portfolios = get_user_portfolios(st.session_state.username)
     
     if user_portfolios:
@@ -463,6 +583,7 @@ def dashboard_page(go_to, get_user_info, change_password):
         
         # Display as a clean table
         if portfolio_data:
+            import pandas as pd
             df = pd.DataFrame(portfolio_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
                 
@@ -475,12 +596,55 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Stock Market Summary Section
     st.subheader("Global Stock Market Dashboard")
     
+    # Stock symbols organized by country
+    stock_data_by_country = {
+        "United States": [
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
+            "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
+            "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
+            "NFLX", "CRM", "XOM", "LLY", "ABT", "ORCL", "ACN", "NVS", "CMCSA", "DIS",
+            "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
+            "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
+        ],
+        "United Kingdom": [
+            "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
+            "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
+            "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
+            "ADM.L", "ANTO.L", "AUTO.L", "AV.L", "BA.L", "BNZL.L", "BRBY.L", "CCL.L", "CPG.L", "CRDS.L",
+            "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
+            "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
+        ],
+        "Australia": [
+            "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
+            "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
+            "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
+            "BRG.AX", "BSL.AX", "BWP.AX", "CAR.AX", "CCP.AX", "CHC.AX", "CPU.AX", "CTX.AX", "CWN.AX", "DMP.AX",
+            "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
+            "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
+        ],
+        "Hong Kong": [
+            "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
+            "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
+            "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
+            "0291.HK", "0293.HK", "0322.HK", "0386.HK", "0390.HK", "0392.HK", "0688.HK", "0762.HK", "0823.HK", "0857.HK",
+            "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
+            "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
+        ],
+        "China": [
+            "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
+            "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
+            "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
+            "STO", "BEST", "QFIN", "LKNCY", "ZLAB", "CAAS", "CBPO", "CANG", "CAN", "CARS",
+            "CADC", "CXDC", "DQ", "EH", "FENG", "GSMG", "HEAR", "HCM", "HIMX", "HUIZ",
+            "JOBS", "LAIX", "LX", "NAAS", "NIU", "QTT", "RERE", "SOHU", "TOUR", "WDH"
+        ]
+    }
     
     # Fetch data for all countries (using 1-year period)
     days = 365  # 1 year
     all_countries_data = {}
     
-    for country, symbols in STOCK_SYMBOLS_BY_COUNTRY.items():
+    for country, symbols in stock_data_by_country.items():
         # Only take first 6 stocks for dashboard display
         top_symbols = symbols[:6]
         with st.spinner(f"Loading {country} stock data (1-year history)..."):
@@ -599,6 +763,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         
         # Time range - Fixed for detailed analysis
         st.info("**Analysis Period:** 10 Years (3,650 days)")
+        days = 90  # Keep for any remaining sidebar functionality
         
         # Analysis options
         st.subheader("Analysis Tools")
@@ -614,9 +779,8 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Logout", type="primary", use_container_width=True):
-            logout_user()
-            st.rerun()
+        if st.button("Profile & Settings", use_container_width=True):
+            go_to("profile")
     
     # Main analysis content
     st.title(f"{selected_stock} - Detailed Analysis")
@@ -647,7 +811,11 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         with col3:
             st.metric("52-Week Low", f"${float(data['Low'].min()):.2f}")
         with col4:
-            st.metric("Volume", f"{int(float(latest['Volume'])):,}" if 'Volume' in latest else "N/A")
+            try:
+                volume = int(float(latest['Volume']))
+                st.metric("Volume", f"{volume:,}")
+            except:
+                st.metric("Volume", "N/A")
         
         st.divider()
         
@@ -657,31 +825,51 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         with col1:
             st.subheader(f"{selected_stock} Price Chart")
             
-            if 'Close' in data.columns:
-                chart_data = pd.DataFrame({'Close': data['Close']})
-                if show_moving_avg and len(data) >= 20:
-                    chart_data['20-Day MA'] = data['Close'].rolling(window=20).mean()
-                st.line_chart(chart_data, height=400)
-            else:
-                st.error("Price data not available")
+            try:
+                # Add moving average if selected
+                if 'Close' in data.columns:
+                    chart_data = pd.DataFrame({'Close': data['Close']})
+                    if show_moving_avg and len(data) >= 20:
+                        chart_data['20-Day MA'] = data['Close'].rolling(window=20).mean()
+                    
+                    st.line_chart(chart_data, height=400)
+                else:
+                    st.error("Close price data not available")
+            except Exception as e:
+                st.error(f"Error creating price chart: {str(e)}")
         
         with col2:
-            if show_volume and 'Volume' in data.columns:
-                st.subheader("Volume Chart")
-                st.bar_chart(data['Volume'], height=400)
-            elif 'High' in data.columns and 'Low' in data.columns:
-                st.subheader("High-Low Range")
-                st.line_chart(data[['High', 'Low']], height=400)
-            else:
-                st.error("Chart data not available")
+            try:
+                if show_volume and 'Volume' in data.columns:
+                    st.subheader("Volume Chart")
+                    volume_data = pd.DataFrame({'Volume': data['Volume']})
+                    st.bar_chart(volume_data, height=400)
+                elif 'High' in data.columns and 'Low' in data.columns:
+                    st.subheader("High-Low Range")
+                    high_low_data = pd.DataFrame({
+                        'High': data['High'],
+                        'Low': data['Low']
+                    })
+                    st.line_chart(high_low_data, height=400)
+                else:
+                    st.error("Chart data not available")
+            except Exception as e:
+                st.error(f"Error creating secondary chart: {str(e)}")
         
+        # Additional analysis
         st.divider()
+        
+        # Recent performance
         col1, col2 = st.columns([2, 3])
         
         with col1:
             st.subheader("Recent Performance")
+            
+            # Calculate different time periods
+            periods = [1, 7, 30]
             performance_data = []
-            for period in [1, 7, 30]:
+            
+            for period in periods:
                 if len(data) > period:
                     old_price = float(data.iloc[-(period+1)]['Close'])
                     current_price = float(latest['Close'])
@@ -690,6 +878,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
                         'Period': f'{period} Day{"s" if period > 1 else ""}',
                         'Change (%)': f'{change:+.2f}%'
                     })
+            
             if performance_data:
                 st.table(pd.DataFrame(performance_data))
         
@@ -705,18 +894,55 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             ]
             st.table(pd.DataFrame(stats_data))
         
+        # Recent Company News
         st.divider()
-        st.subheader("📰 Company News")
+        st.subheader(" Company News")
+        
         news_info = get_company_news_link(selected_stock)
+        
         if news_info:
-            st.link_button(f"View {news_info['company_name']} News", news_info['news_url'], use_container_width=True)
+            st.write(f"**Company:** {news_info['company_name']}")
+            st.write(f"**Stock Symbol:** {news_info['symbol']}")
+            st.write(f"**Search Query:** {news_info['search_query']}")
+            
+            st.link_button(
+                f"View {news_info['company_name']} News on Google", 
+                news_info['news_url'],
+                use_container_width=True
+            )
+            
+            st.caption("Click the button above to view the latest news about this company on Google News.")
         else:
-            st.info(f"News unavailable for {selected_stock}")
+            st.info(f" Unable to generate news link for {selected_stock}")
+            st.caption("There might be an issue fetching company information.")
         
         
     else:
         st.error(f"Unable to load data for {selected_stock}")
-        st.info("Try: AAPL, GOOGL, MSFT, TSLA (US) | LLOY.L, BP.L (UK) | CBA.AX (AU)")
+        
+        # Provide helpful suggestions for common errors
+        st.info("**Possible solutions:**")
+        suggestions = [
+            "Check your internet connection",
+            "Verify the stock symbol is correct",
+            "Try adding market suffix (e.g., .L for London, .AX for Australia, .HK for Hong Kong)",
+            "Make sure the symbol is currently traded"
+        ]
+        
+        for suggestion in suggestions:
+            st.write(f"• {suggestion}")
+        
+        # Show some examples of valid symbols
+        st.info("**Valid symbol examples:**")
+        examples = {
+            "US Stocks": "AAPL, GOOGL, MSFT, TSLA",
+            "UK Stocks": "LLOY.L, BP.L, SHEL.L",
+            "Australian": "CBA.AX, BHP.AX, ANZ.AX", 
+            "Hong Kong": "0700.HK, 0005.HK, 0941.HK"
+        }
+        
+        for market, symbols in examples.items():
+            st.write(f"**{market}:** {symbols}")
 
 
 def portfolios_page(go_to, get_user_info, change_password):
@@ -732,6 +958,8 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("Create New Portfolio", use_container_width=True):
             go_to("create_portfolio")
         
+        if st.button("Portfolio Analytics", use_container_width=True):
+            st.session_state.show_analytics = True
             
         st.divider()
         
@@ -742,9 +970,8 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("Stock Analysis", use_container_width=True):
             go_to("stock_analysis")
         
-        if st.button("Logout", type="primary", use_container_width=True):
-            logout_user()
-            st.rerun()
+        if st.button("Profile & Settings", use_container_width=True):
+            go_to("profile")
     
     # Main portfolio content
     st.title("Portfolio Management")
@@ -753,24 +980,37 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("Summary")
     
     # Fetch portfolios from database
+    from login import get_user_portfolios
     
     user_portfolios = get_user_portfolios(st.session_state.username)
     
     # Convert database portfolios to display format
     sample_portfolios = []
-    for portfolio in user_portfolios:
-        # Calculate portfolio value from stocks
-        total_value = sum(stock.get('price', 0) * stock.get('shares', 1) for stock in portfolio.get('stocks', []))
-        
-        sample_portfolios.append({
-            "_id": str(portfolio['_id']),
-            "name": portfolio['portfolio_name'],
-            "created": portfolio['created_at'].strftime('%Y-%m-%d') if portfolio.get('created_at') else "Unknown",
-            "value": total_value,
-            "change": 0,  # Placeholder - would calculate from historical data
-            "change_pct": 0,  # Placeholder - would calculate from historical data
-            "stocks": [stock['symbol'] for stock in portfolio.get('stocks', [])]
-        })
+    
+    if user_portfolios:
+        with st.spinner("Loading portfolio performance..."):
+            # Get all unique symbols across all portfolios for bulk price fetching
+            all_symbols = set()
+            for portfolio in user_portfolios:
+                for stock in portfolio.get('stocks', []):
+                    all_symbols.add(stock['symbol'])
+            
+            # Fetch current prices for all symbols at once
+            current_prices = get_bulk_current_prices(list(all_symbols))
+            
+            # Calculate performance for each portfolio
+            for portfolio in user_portfolios:
+                total_value, change, change_pct = calculate_portfolio_performance(portfolio, current_prices)
+                
+                sample_portfolios.append({
+                    "_id": str(portfolio['_id']),
+                    "name": portfolio['portfolio_name'],
+                    "created": portfolio['created_at'].strftime('%Y-%m-%d') if portfolio.get('created_at') else "Unknown",
+                    "value": total_value,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "stocks": [stock['symbol'] for stock in portfolio.get('stocks', [])]
+                })
     
     if sample_portfolios:
         # Total portfolio value
@@ -803,8 +1043,20 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("My Portfolios")
     
     if sample_portfolios:
+        # Bubble sort portfolios by value (highest first)
+        def bubble_sort_portfolios_by_value(portfolios):
+            """Sort portfolios by value using bubble sort (highest to lowest)"""
+            n = len(portfolios)
+            for i in range(n):
+                for j in range(0, n - i - 1):
+                    # Compare adjacent portfolios by value (descending order)
+                    if portfolios[j]['value'] < portfolios[j + 1]['value']:
+                        # Swap portfolios
+                        portfolios[j], portfolios[j + 1] = portfolios[j + 1], portfolios[j]
+            return portfolios
+        
         # Sort portfolios by value (highest first)
-        sorted_portfolios = sorted(sample_portfolios, key=lambda p: p['value'], reverse=True)
+        sorted_portfolios = bubble_sort_portfolios_by_value(sample_portfolios.copy())
         
         # Portfolio cards
         for portfolio in sorted_portfolios:
@@ -953,6 +1205,33 @@ View Template: {portfolio_url}
                     st.session_state.show_create_form = False
                     st.rerun()
     
+    # Portfolio analytics
+    if st.session_state.get("show_analytics", False):
+        st.subheader("📊 Portfolio Analytics")
+        
+        # Sample analytics data
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Portfolio Performance (Last 30 Days)**")
+            # Sample data for demonstration
+            performance_data = pd.DataFrame({
+                'Date': pd.date_range('2024-01-01', periods=30),
+                'Total Value': [20000 + i*100 + (i%5)*50 for i in range(30)]
+            })
+            st.line_chart(performance_data.set_index('Date'))
+        
+        with col2:
+            st.write("**Asset Allocation**")
+            allocation_data = pd.DataFrame({
+                'Asset': ['Technology', 'Healthcare', 'Finance', 'Energy', 'Consumer'],
+                'Allocation': [40, 25, 15, 10, 10]
+            })
+            st.bar_chart(allocation_data.set_index('Asset'))
+        
+        if st.button("Hide Analytics"):
+            st.session_state.show_analytics = False
+            st.rerun()
 
 
 def create_portfolio_page(go_to, get_user_info, change_password):
@@ -971,9 +1250,8 @@ def create_portfolio_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Logout", type="primary", use_container_width=True):
-            logout_user()
-            st.rerun()
+        if st.button("Profile & Settings", use_container_width=True):
+            go_to("profile")
     
     # Main content
     st.title("Create New Portfolio")
@@ -1024,6 +1302,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
     if submitted:
         if portfolio_name and selected_countries:
             # Create portfolio in database
+            from login import create_portfolio
             
             portfolio_data = {
                 'name': portfolio_name,
@@ -1046,6 +1325,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 st.info("Your portfolio has been created! You can now add stocks and track your investments.")
                 
                 # Get the created portfolio from database to get the real ID
+                from login import get_user_portfolios
                 user_portfolios = get_user_portfolios(st.session_state.username)
                 
                 # Find the newly created portfolio (most recent)
@@ -1058,6 +1338,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                     st.session_state.current_portfolio['_id'] = 'temp_id'
                 
                 # Auto redirect to my stocks page
+                import time
                 time.sleep(2)
                 go_to("my_stocks")
             else:
@@ -1091,6 +1372,8 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("Add Stock", use_container_width=True, type="primary"):
             go_to("stock_search")
         
+        if st.button(" Portfolio Analytics", use_container_width=True):
+            st.info("Portfolio analytics coming soon!")
         
         st.divider()
         
@@ -1101,9 +1384,8 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Logout", type="primary", use_container_width=True):
-            logout_user()
-            st.rerun()
+        if st.button("Profile & Settings", use_container_width=True):
+            go_to("profile")
     
     # Main content
     st.title("My Portfolio")
@@ -1113,6 +1395,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
     if 'current_portfolio' in st.session_state:
         portfolio_id = st.session_state.current_portfolio.get('_id')
         if portfolio_id and portfolio_id != 'temp_id':
+            from login import get_portfolio_by_id
             portfolio = get_portfolio_by_id(portfolio_id)
         
         if not portfolio:
@@ -1169,6 +1452,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
                         # Remove from database
                         portfolio_id = st.session_state.current_portfolio.get('_id')
                         if portfolio_id and portfolio_id != 'temp_id':
+                            from login import remove_stock_from_portfolio
                             success, message = remove_stock_from_portfolio(portfolio_id, stock['symbol'])
                             if success:
                                 st.success(f"Removed {stock['symbol']} from portfolio")
@@ -1205,6 +1489,7 @@ def show_stock_historical_data(symbol, name):
         if stock_info and not stock_info['historical_data'].empty:
             historical_data = stock_info['historical_data']
             
+            # Basic info - using single row layout to avoid nesting issues
             if 'price' in stock_info:
                 st.metric("Current Price", f"${stock_info['price']:.2f}")
             if 'change' in stock_info:
@@ -1212,6 +1497,7 @@ def show_stock_historical_data(symbol, name):
                 st.metric("Daily Change", f"${stock_info['change']:+.2f}", f"{change_pct:+.2f}%")
             st.write(f"**Sector:** {stock_info.get('sector', 'N/A')}")
             st.write(f"**Industry:** {stock_info.get('industry', 'N/A')}")
+            
             st.divider()
             
             # Historical performance metrics
@@ -1222,30 +1508,125 @@ def show_stock_historical_data(symbol, name):
                 years = len(historical_data) / 252  # Approximate trading days per year
                 annualized_return = ((last_price / first_price) ** (1/years) - 1) * 100 if years > 0 else 0
                 
+                # Display metrics in a vertical layout to avoid column nesting
                 st.metric("Total Return", f"{total_return:+.2f}%")
                 st.metric("Annualized Return", f"{annualized_return:+.2f}%")
                 st.metric("All-Time High", f"${historical_data['High'].max():.2f}")
                 st.metric("All-Time Low", f"${historical_data['Low'].min():.2f}")
+                
                 st.divider()
                 
-                st.subheader("Price History")
-                timeframe = st.selectbox("Timeframe", ["All Time", "Last 10 Years", "Last 5 Years"], key=f"timeframe_{symbol}")
-                if timeframe == "All Time":
-                    chart_data = historical_data
-                elif timeframe == "Last 10 Years":
-                    chart_data = historical_data.tail(10 * 252)
-                else:
-                    chart_data = historical_data.tail(5 * 252)
-                st.line_chart(chart_data['Close'], height=400)
+                # Interactive charts
+                tab1, tab2, tab3, tab4 = st.tabs(["Price History", "Volume", "Returns", "Statistics"])
                 
-                st.subheader("Volume")
-                st.bar_chart(chart_data['Volume'], height=300)
+                with tab1:
+                    st.subheader("Stock Price Over Time")
+                    # Create price chart with multiple timeframes
+                    timeframe = st.selectbox(
+                        "Select Timeframe",
+                        ["All Time", "Last 10 Years", "Last 5 Years", "Last 2 Years"],
+                        key=f"timeframe_{symbol}"
+                    )
+                    
+                    if timeframe == "All Time":
+                        chart_data = historical_data
+                    elif timeframe == "Last 10 Years":
+                        chart_data = historical_data.tail(10 * 252)
+                    elif timeframe == "Last 5 Years":
+                        chart_data = historical_data.tail(5 * 252)
+                    else:  # Last 2 Years
+                        chart_data = historical_data.tail(2 * 252)
+                    
+                    st.line_chart(chart_data['Close'], height=400)
+                    
+                    # Show OHLC data
+                    st.subheader("OHLC Data")
+                    # OHLC charts in vertical layout
+                    st.write("**Open Prices**")
+                    st.line_chart(chart_data['Open'], height=150)
+                    st.write("**High Prices**")
+                    st.line_chart(chart_data['High'], height=150)
+                    st.write("**Low Prices**")
+                    st.line_chart(chart_data['Low'], height=150)
+                    st.write("**Close Prices**")
+                    st.line_chart(chart_data['Close'], height=150)
                 
-                returns = chart_data['Close'].pct_change().dropna()
-                st.metric("Avg Daily Return", f"{returns.mean() * 100:.2f}%")
-                st.metric("Volatility", f"{returns.std() * 100:.2f}%")
+                with tab2:
+                    st.subheader("Trading Volume Over Time")
+                    st.bar_chart(chart_data['Volume'], height=400)
+                    
+                    # Volume statistics
+                    avg_volume = chart_data['Volume'].mean()
+                    max_volume = chart_data['Volume'].max()
+                    st.metric("Average Volume", f"{avg_volume:,.0f}")
+                    st.metric("Maximum Volume", f"{max_volume:,.0f}")
+                
+                with tab3:
+                    st.subheader("Daily Returns Analysis")
+                    # Calculate daily returns
+                    returns = chart_data['Close'].pct_change().dropna()
+                    
+                    # Returns chart
+                    st.line_chart(returns * 100, height=300)
+                    
+                    # Returns statistics
+                    # Returns statistics in vertical layout
+                    st.metric("Avg Daily Return", f"{returns.mean() * 100:.2f}%")
+                    st.metric("Volatility", f"{returns.std() * 100:.2f}%")
+                    st.metric("Best Day", f"{returns.max() * 100:.2f}%")
+                    st.metric("Worst Day", f"{returns.min() * 100:.2f}%")
+                
+                with tab4:
+                    st.subheader("Detailed Statistics")
+                    
+                    # Create comprehensive statistics table
+                    stats_data = {
+                        "Metric": ["Current Price", "52-Week High", "52-Week Low", "All-Time High", "All-Time Low",
+                                 "Total Return", "Annualized Return", "Volatility", "Average Volume", "Market Cap"],
+                        "Value": []
+                    }
+                    
+                    # Calculate 52-week highs/lows
+                    recent_year = historical_data.tail(252) if len(historical_data) > 252 else historical_data
+                    fifty_two_week_high = recent_year['High'].max()
+                    fifty_two_week_low = recent_year['Low'].min()
+                    
+                    stats_data["Value"] = [
+                        f"${stock_info.get('price', last_price):.2f}",
+                        f"${fifty_two_week_high:.2f}",
+                        f"${fifty_two_week_low:.2f}",
+                        f"${historical_data['High'].max():.2f}",
+                        f"${historical_data['Low'].min():.2f}",
+                        f"{total_return:+.2f}%",
+                        f"{annualized_return:+.2f}%",
+                        f"{returns.std() * 100:.2f}%",
+                        f"{historical_data['Volume'].mean():,.0f}",
+                        f"${stock_info.get('info', {}).get('marketCap', 'N/A')}"
+                    ]
+                    
+                    stats_df = pd.DataFrame(stats_data)
+                    st.dataframe(stats_df, use_container_width=True)
+                    
+                    # Additional company info
+                    if stock_info.get('info'):
+                        st.subheader("Company Information")
+                        info = stock_info['info']
+                        
+                        # Company info in single column layout
+                        st.write(f"**Country:** {info.get('country', 'N/A')}")
+                        st.write(f"**Employees:** {info.get('fullTimeEmployees', 'N/A')}")
+                        st.write(f"**Website:** {info.get('website', 'N/A')}")
+                        st.write(f"**P/E Ratio:** {info.get('trailingPE', 'N/A')}")
+                        st.write(f"**Dividend Yield:** {info.get('dividendYield', 'N/A')}")
+                        st.write(f"**Beta:** {info.get('beta', 'N/A')}")
+                        
+                        # Business summary
+                        if info.get('longBusinessSummary'):
+                            st.subheader("Business Summary")
+                            st.write(info['longBusinessSummary'])
         else:
             st.error(f"No historical data available for {symbol}")
+            st.info("This stock may not have been trading since 2000, or there may be an issue fetching the data.")
 
 def stock_search_page(go_to, get_user_info, change_password):
     """Render the stock search page for adding stocks to portfolio"""
@@ -1257,9 +1638,11 @@ def stock_search_page(go_to, get_user_info, change_password):
         # Search filters
         st.subheader("Filters")
         
+        # Country filter with all available countries
         available_countries = ["All", "United States", "United Kingdom", "Australia", "Hong Kong", "China"]
         if 'current_portfolio' in st.session_state:
             portfolio_countries = st.session_state.current_portfolio.get('countries', [])
+            # Show portfolio countries first, then all others
             country_options = ["All"] + portfolio_countries + [c for c in available_countries[1:] if c not in portfolio_countries]
         else:
             country_options = available_countries
@@ -1267,13 +1650,19 @@ def stock_search_page(go_to, get_user_info, change_password):
         selected_country = st.selectbox("Country", country_options, help="Filter stocks by country/region")
         
         st.divider()
+        
+        # Navigation
         if st.button("← Back to My Stocks", use_container_width=True):
             go_to("my_stocks")
+        
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
     
+    # Main content
     st.title("Stock Search")
     st.markdown("### Find and add stocks to your portfolio")
+    
+    # Search bar
     search_query = st.text_input("Search for stocks (symbol or company name)", placeholder="e.g., AAPL, Apple, Tesla")
     
     col1, col2 = st.columns([1, 3])
@@ -1332,41 +1721,84 @@ def stock_search_page(go_to, get_user_info, change_password):
                     st.write(f"{change_color} {stock['change']:+.2f}")
                 
                 with col5:
-                    shares = st.number_input("Shares", min_value=1, max_value=10000, value=1, key=f"shares_{stock['symbol']}")
-                    purchase_price = st.number_input("Purchase Price ($)", min_value=0.01, value=float(stock['price']), step=0.01, key=f"price_{stock['symbol']}")
-                    st.caption(f"Total: ${purchase_price * shares:.2f}")
+                    # Shares input
+                    shares_key = f"shares_{stock['symbol']}"
+                    shares = st.number_input(
+                        "Shares", 
+                        min_value=1, 
+                        max_value=10000, 
+                        value=1,
+                        key=shares_key,
+                        help="Number of shares you purchased"
+                    )
+                    
+                    # Purchase price input
+                    purchase_price_key = f"purchase_price_{stock['symbol']}"
+                    purchase_price = st.number_input(
+                        "Avg. Purchase Price per Share ($)",
+                        min_value=0.01,
+                        max_value=100000.0,
+                        value=float(stock['price']),
+                        step=0.01,
+                        key=purchase_price_key,
+                        help="Enter the average price you paid per share (if you bought at different times, calculate the average)"
+                    )
+                    
+                    total_cost = purchase_price * shares
+                    st.caption(f"Total Investment: ${total_cost:.2f}")
+                    st.caption(f"Current Market Price: ${stock['price']:.2f}")
                     
                     if st.button("Add", key=f"add_{stock['symbol']}"):
+                        # Add stock to portfolio
                         if 'current_portfolio' not in st.session_state:
                             st.session_state.current_portfolio = {'stocks': []}
-                        existing = [s for s in st.session_state.current_portfolio.get('stocks', []) if s['symbol'] == stock['symbol']]
+                        
+                        # Check if stock already exists
+                        existing = [s for s in st.session_state.current_portfolio.get('stocks', []) 
+                                  if s['symbol'] == stock['symbol']]
+                        
                         if existing:
                             st.warning(f"{stock['symbol']} is already in your portfolio!")
                         else:
+                            # Add stock with user-specified quantity and purchase price
                             new_stock = {
-                                'symbol': stock['symbol'], 'name': stock['name'],
-                                'purchase_price': purchase_price, 'current_price': stock['price'],
-                                'price': purchase_price, 'shares': shares, 'purchase_value': purchase_price * shares
+                                'symbol': stock['symbol'],
+                                'name': stock['name'],
+                                'purchase_price': purchase_price,  # User's actual purchase price
+                                'current_price': stock['price'],   # Current market price
+                                'price': purchase_price,           # Keep for backward compatibility
+                                'shares': shares,
+                                'purchase_value': total_cost       # Total amount invested
                             }
+                            
                             if 'stocks' not in st.session_state.current_portfolio:
                                 st.session_state.current_portfolio['stocks'] = []
+                            
+                            # Add to session state
                             st.session_state.current_portfolio['stocks'].append(new_stock)
                             
+                            # Save to MongoDB database
+                            from login import add_stock_to_portfolio
                             portfolio_id = st.session_state.current_portfolio.get('_id')
+                            
                             if portfolio_id and portfolio_id != 'temp_id':
                                 db_success, db_message = add_stock_to_portfolio(portfolio_id, new_stock)
                                 if db_success:
-                                    st.success(f"Added {shares} shares of {stock['symbol']} to portfolio!")
+                                    st.success(f"Added {shares} shares of {stock['symbol']} at ${purchase_price:.2f}/share (${total_cost:.2f} total) to your portfolio!")
                                     st.balloons()
-                                    time.sleep(2)
+                                    
+                                    # Redirect to My Portfolio (My Stocks) after balloons
+                                    import time
+                                    time.sleep(2)  # Wait for balloons animation
                                     go_to("my_stocks")
                                 else:
-                                    st.error(f"Failed to save: {db_message}")
+                                    st.error(f"Failed to save to database: {db_message}")
                             else:
-                                st.error("Portfolio not found")
+                                st.error("Portfolio not found in database")
                 
                 with col6:
-                    if st.button("History", key=f"history_{stock['symbol']}"):
+                    # Historical data button
+                    if st.button("History", key=f"history_{stock['symbol']}", help="View historical data from 2000s"):
                         show_stock_historical_data(stock['symbol'], stock['name'])
                 
                 st.markdown("---")
@@ -1388,6 +1820,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         return
     
     # Get portfolio data from database
+    from login import get_portfolio_by_id, update_portfolio, remove_stock_from_portfolio
     
     portfolio_id = st.session_state.edit_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
@@ -1409,7 +1842,7 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         # Actions
         st.subheader("Actions")
         
-        if st.button("➕ Add More Stocks", use_container_width=True, type="primary"):
+        if st.button(" Add More Stocks", use_container_width=True, type="primary"):
             # Set current portfolio for stock search
             st.session_state.current_portfolio = {
                 '_id': portfolio_id,
@@ -1609,6 +2042,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         return
     
     # Get portfolio data from database
+    from login import get_portfolio_by_id
     
     portfolio_id = st.session_state.view_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
@@ -1627,14 +2061,21 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         st.write(f"**Created:** {portfolio['created_at'].strftime('%Y-%m-%d') if portfolio.get('created_at') else 'Unknown'}")
         
         st.divider()
+        
+        # Quick actions
         st.subheader("🔧 Actions")
+        
         if st.button("Edit Portfolio", use_container_width=True, type="primary"):
             st.session_state.edit_portfolio_id = portfolio_id
             st.session_state.edit_portfolio_name = portfolio['portfolio_name']
             go_to("edit_portfolio")
+        
         st.divider()
+        
+        # Navigation
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
+        
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
     
@@ -1759,10 +2200,12 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         # Create columns for stock cards
         cols = st.columns(3)
         for idx, stock in enumerate(stocks):
-            with cols[idx % 3]:
+            with cols[idx % 2]:
                 symbol = stock['symbol']
                 shares = stock.get('shares', 1)
+                # Use the specific purchase_price field, fallback to 'price' for backward compatibility
                 purchase_price = stock.get('purchase_price', stock.get('price', 0))
+                # Get current market price from live data, fallback to stored current_price, then purchase_price
                 current_price = current_stock_data.get(symbol) or stock.get('current_price') or purchase_price
                 
                 # Calculate metrics
@@ -1773,11 +2216,36 @@ def portfolio_details_page(go_to, get_user_info, change_password):
                 
                 with st.container():
                     st.markdown(f"#### {symbol}")
-                    st.metric("Value", f"${current_value:.2f}", f"{gain_loss:+.2f}")
-                    st.markdown(format_percentage_with_color(gain_loss_pct), unsafe_allow_html=True)
-                    st.write(f"**Shares:** {shares} | **Purchase:** ${purchase_price:.2f} | **Current:** ${current_price:.2f}")
-                    if st.button("History", key=f"history_{symbol}_{idx}"):
-                        show_stock_historical_data(symbol, stock.get('name', symbol))
+                    st.caption(stock.get('name', symbol))
+                    
+                    # Metrics
+                    metric_col1, metric_col2 = st.columns(2)
+                    with metric_col1:
+                        st.metric("Current Value", f"${current_value:.2f}", f"{gain_loss:+.2f}")
+                    with metric_col2:
+                        st.markdown("**Performance**")
+                        st.markdown(format_percentage_with_color(gain_loss_pct), unsafe_allow_html=True)
+                    
+                    # Stock details
+                    st.write(f"**Shares:** {shares}")
+                    st.write(f"**Purchase Price:** ${purchase_price:.2f}")
+                    st.write(f"**Current Price:** ${current_price:.2f}")
+                    
+                    # Action buttons
+                    button_col1, button_col2 = st.columns(2)
+                    with button_col1:
+                        if st.button("View History", key=f"portfolio_history_{symbol}_{idx}", help="View historical data from 2000s"):
+                            show_stock_historical_data(symbol, stock.get('name', symbol))
+                    
+                    # Try to show mini chart
+                    try:
+                        ticker = yf.Ticker(symbol)
+                        hist_data = ticker.history(period="1mo")
+                        if not hist_data.empty:
+                            st.line_chart(hist_data['Close'], height=200)
+                            st.caption("Last 30 days")
+                    except:
+                        st.caption("Chart unavailable")
                     
                     st.markdown("---")
     
