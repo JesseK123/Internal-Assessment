@@ -279,17 +279,6 @@ def login_page(go_to, verify_user, update_last_login):
                 else:
                     st.error("Invalid credentials")
 
-    # Password strength indicator
-    if password:
-        strength = calculate_password_strength(password)
-        st.progress(strength / 100)
-        if strength < 50:
-            st.caption("Weak password")
-        elif strength < 80:
-            st.caption("Medium password")
-        else:
-            st.caption("Strong password")
-
     st.divider()
 
     st.write("Don't have an account?")
@@ -309,21 +298,6 @@ def register_page(go_to, register_user):
         help="Must be at least 8 characters with uppercase, lowercase, number and special character",
     )
     confirm_password = st.text_input("Confirm password", type="password")
-
-    # Real-time password strength indicator
-    if password:
-        strength = calculate_password_strength(password)
-        progress_bar = st.progress(strength / 100)
-        if strength < 30:
-            st.caption("Very weak password")
-        elif strength < 50:
-            st.caption("Weak password")
-        elif strength < 70:
-            st.caption("Medium password")
-        elif strength < 90:
-            st.caption("Strong password")
-        else:
-            st.caption("Very strong password")
 
     # Password match indicator
     if password and confirm_password:
@@ -359,14 +333,17 @@ def dashboard_page(go_to, get_user_info, change_password):
         # Dashboard options
         st.subheader("Options")
         
-        if st.button("Detailed Stock Analysis", use_container_width=True):
+        if st.button("Detailed Stock Analysis", use_container_width=True, key="sidebar_stock_analysis"):
             go_to("stock_analysis")
         
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.page = "login"
+            st.rerun()
         
         st.divider()
         
@@ -422,16 +399,8 @@ def dashboard_page(go_to, get_user_info, change_password):
             if st.button("Create Your First Portfolio", type="primary", use_container_width=True):
                 go_to("create_portfolio")
         with col2:
-            if st.button("Learn About Portfolios", use_container_width=True):
-                st.info("""
-                **What is a Portfolio?**
-                
-                A portfolio is a collection of stocks from different markets that you want to track and manage. 
-                You can:
-                - Add stocks from multiple countries
-                - Track performance over time
-                - Compare different investment strategies
-                """)
+            if st.button("Detailed Stock Analysis", use_container_width=True, key="dashboard_stock_analysis"):
+                go_to("stock_analysis")
 
     st.divider()
 
@@ -503,7 +472,6 @@ def dashboard_page(go_to, get_user_info, change_password):
         
         # Display as a clean table
         if portfolio_data:
-            import pandas as pd
             df = pd.DataFrame(portfolio_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
                 
@@ -699,8 +667,11 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         if st.button("Portfolios", use_container_width=True):
             go_to("portfolios")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.page = "login"
+            st.rerun()
     
     # Main analysis content
     st.title(f"{selected_stock} - Detailed Analysis")
@@ -890,8 +861,11 @@ def portfolios_page(go_to, get_user_info, change_password):
         if st.button("Stock Analysis", use_container_width=True):
             go_to("stock_analysis")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.page = "login"
+            st.rerun()
     
     # Main portfolio content
     st.title("Portfolio Management")
@@ -1158,8 +1132,11 @@ def create_portfolio_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.page = "login"
+            st.rerun()
     
     # Main content
     st.title("Create New Portfolio")
@@ -1292,8 +1269,11 @@ def my_stocks_page(go_to, get_user_info, change_password):
         if st.button("Dashboard", use_container_width=True):
             go_to("dashboard")
         
-        if st.button("Profile & Settings", use_container_width=True):
-            go_to("profile")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.page = "login"
+            st.rerun()
     
     # Main content
     st.title("My Portfolio")
