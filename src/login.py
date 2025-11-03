@@ -199,16 +199,34 @@ def get_user_portfolios(username):
         portfolios = get_portfolios_collection()
         if portfolios is None:
             return []
-        
+
         user_portfolios = list(portfolios.find({
             "user_id": username,
             "is_active": True
         }).sort("created_at", -1))
-        
+
         return user_portfolios
-        
+
     except Exception as e:
         st.error(f"Error fetching portfolios: {str(e)}")
+        return []
+
+
+def get_all_portfolios():
+    """Get all portfolios from all users for media feed"""
+    try:
+        portfolios = get_portfolios_collection()
+        if portfolios is None:
+            return []
+
+        all_portfolios = list(portfolios.find({
+            "is_active": True
+        }).sort("created_at", -1))
+
+        return all_portfolios
+
+    except Exception as e:
+        st.error(f"Error fetching all portfolios: {str(e)}")
         return []
 
 

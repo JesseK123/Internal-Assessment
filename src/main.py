@@ -1,9 +1,9 @@
 import streamlit as st
-from login import (verify_user, register_user, get_user_info, 
-                   change_password, update_last_login, create_portfolio, 
-                   get_user_portfolios, get_portfolio_by_id, update_portfolio, 
+from login import (verify_user, register_user, get_user_info,
+                   change_password, update_last_login, create_portfolio,
+                   get_user_portfolios, get_all_portfolios, get_portfolio_by_id, update_portfolio,
                    delete_portfolio, add_stock_to_portfolio, remove_stock_from_portfolio)
-from ui import login_page, register_page, dashboard_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page
+from ui import login_page, register_page, dashboard_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page, portfolio_analytics_page, media_portfolio_view_page
 from database import initialize_database
 
 # Page config
@@ -91,6 +91,10 @@ def main():
             edit_portfolio_page(go_to, get_user_info, change_password)
         elif st.session_state.page == "portfolio_details":
             portfolio_details_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "portfolio_analytics":
+            portfolio_analytics_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "media_portfolio_view":
+            media_portfolio_view_page(go_to, get_user_info, change_password)
         else:
             dashboard_page(go_to, get_user_info, change_password)
     elif st.session_state.page == "register":
