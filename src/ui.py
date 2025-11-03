@@ -528,7 +528,7 @@ def dashboard_page(go_to, get_user_info, change_password):
 
     # Media Section - View all users' portfolios
     st.subheader("Community Portfolios")
-    st.caption("Explore investment strategies from other users")
+    st.caption("Explore Portfolios from Other Users")
 
     from login import get_all_portfolios
 
@@ -537,53 +537,96 @@ def dashboard_page(go_to, get_user_info, change_password):
     if all_portfolios:
         # Filter to show only portfolios from OTHER users (exclude current user)
         other_users_portfolios = [p for p in all_portfolios if p.get('user_id') != st.session_state.username]
-        media_portfolios = other_users_portfolios[:10]  # Limit to first 10 for display
+        media_portfolios = other_users_portfolios[:5]  # Limit to first 5 for display
 
         if media_portfolios:
-            # Create portfolio cards
-            for portfolio in media_portfolios:
-                owner_username = portfolio.get('user_id', 'Unknown User')
-                stocks = portfolio.get('stocks', [])
-                stock_count = len(stocks)
-                countries = portfolio.get('countries', [])
-                created_at = portfolio.get('created_at')
+            with st.spinner("Calculating community portfolio predictions..."):
+                # Create portfolio cards
+                for portfolio in media_portfolios:
+                    owner_username = portfolio.get('user_id', 'Unknown User')
+                    stocks = portfolio.get('stocks', [])
+                    stock_count = len(stocks)
+                    countries = portfolio.get('countries', [])
+                    created_at = portfolio.get('created_at')
 
-                # Calculate total value
-                total_value = 0
-                for stock in stocks:
-                    purchase_price = stock.get('purchase_price', stock.get('price', 0))
-                    total_value += purchase_price * stock.get('shares', 1)
+                    # Calculate total value
+                    total_value = 0
+                    for stock in stocks:
+                        purchase_price = stock.get('purchase_price', stock.get('price', 0))
+                        total_value += purchase_price * stock.get('shares', 1)
 
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+                    # Calculate predicted value using regression
+                    predicted_value = 0
+                    if stocks:
+                        for stock in stocks:
+                            try:
+                                ticker = yf.Ticker(stock['symbol'])
+                                hist = ticker.history(period="1y")
 
-                    with col1:
-                        st.write(f"**{owner_username}**")
-                        if created_at:
-                            st.caption(f"Created: {created_at.strftime('%Y-%m-%d') if isinstance(created_at, datetime) else 'N/A'}")
+                                if len(hist) >= 30:
+                                    price_data = hist['Close'].dropna()
+                                    X = np.arange(len(price_data)).reshape(-1, 1)
+                                    y = price_data.values
 
-                with col2:
-                    st.metric("Total Value", f"${total_value:,.2f}")
+                                    coefficients = np.polyfit(X.flatten(), y, 1)
+                                    slope = coefficients[0]
+                                    intercept = coefficients[1]
 
-                with col3:
-                    st.metric("Stocks", stock_count)
-                    st.caption(", ".join(countries) if countries else "N/A")
+                                    # Predict 365 days ahead
+                                    future_X = len(price_data) + 365
+                                    predicted_price = slope * future_X + intercept
 
-                with col4:
-                    if st.button("View Details", key=f"media_view_{portfolio['_id']}", use_container_width=True):
-                        # Store portfolio ID for viewing
-                        st.session_state.media_portfolio_id = str(portfolio['_id'])
-                        st.session_state.media_portfolio_owner = owner_username
-                        go_to("media_portfolio_view")
+                                    shares = stock.get('shares', 1)
+                                    predicted_value += predicted_price * shares
+                                else:
+                                    # If no sufficient data, use current price as prediction
+                                    current_price = stock.get('price', 0)
+                                    shares = stock.get('shares', 1)
+                                    predicted_value += current_price * shares
+                            except:
+                                # If prediction fails, use current price
+                                current_price = stock.get('price', 0)
+                                shares = stock.get('shares', 1)
+                                predicted_value += current_price * shares
 
-                # Show top 3 holdings
-                if stocks:
-                    holdings_text = "Holdings: " + ", ".join([f"{s.get('symbol', 'N/A')}" for s in stocks[:3]])
-                    if len(stocks) > 3:
-                        holdings_text += f" +{len(stocks) - 3} more"
-                    st.caption(holdings_text)
+                    # Calculate predicted change
+                    predicted_change = predicted_value - total_value
+                    predicted_change_pct = (predicted_change / total_value * 100) if total_value > 0 else 0
 
-                st.markdown("---")
+                    with st.container():
+                        col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 2])
+
+                        with col1:
+                            st.write(f"**{owner_username}**")
+                            if created_at:
+                                st.caption(f"Created on: {created_at.strftime('%Y-%m-%d') if isinstance(created_at, datetime) else 'N/A'}")
+
+                        with col2:
+                            st.metric("Purchase Value", f"${total_value:,.2f}")
+
+                        with col3:
+                            st.metric("Predicted Value (1Y)", f"${predicted_value:,.2f}",
+                                     f"{predicted_change_pct:+.1f}%")
+
+                        with col4:
+                            st.metric("Stocks", stock_count)
+                            st.caption(", ".join(countries) if countries else "N/A")
+
+                        with col5:
+                            if st.button("View Details", key=f"media_view_{portfolio['_id']}", use_container_width=True):
+                                # Store portfolio ID for viewing
+                                st.session_state.media_portfolio_id = str(portfolio['_id'])
+                                st.session_state.media_portfolio_owner = owner_username
+                                go_to("media_portfolio_view")
+
+                    # Show top 3 holdings
+                    if stocks:
+                        holdings_text = "Holdings: " + ", ".join([f"{s.get('symbol', 'N/A')}" for s in stocks[:3]])
+                        if len(stocks) > 3:
+                            holdings_text += f" +{len(stocks) - 3} more"
+                        st.caption(holdings_text)
+
+                    st.markdown("---")
 
             if len(other_users_portfolios) > 10:
                 st.info(f"Showing 10 of {len(other_users_portfolios)} community portfolios from other users")
