@@ -785,7 +785,94 @@ def stock_analysis_page(go_to, get_user_info, change_password):
                 {'Metric': 'Range', 'Value': f"${data['Close'].max() - data['Close'].min():.2f}"}
             ]
             st.table(pd.DataFrame(stats_data))
-        
+
+        # Price Prediction Section
+        st.divider()
+        st.subheader("📈 Price Prediction Using Linear Regression")
+        st.caption("Simple linear regression model trained on historical data to forecast next year")
+
+        # Prepare data for regression
+        price_data = data['Close'].dropna()
+
+        if len(price_data) >= 30:  # Need at least 30 days of data
+            # Prepare training data
+            X = np.arange(len(price_data)).reshape(-1, 1)  # Days as features
+            y = price_data.values
+
+            # Fit linear regression using numpy
+            coefficients = np.polyfit(X.flatten(), y, 1)
+            slope = coefficients[0]
+            intercept = coefficients[1]
+
+            # Make predictions for historical data
+            y_pred = slope * X.flatten() + intercept
+
+            # Predict next 365 days
+            future_days = 365
+            future_X = np.arange(len(price_data), len(price_data) + future_days).reshape(-1, 1)
+            future_predictions = slope * future_X.flatten() + intercept
+
+            # Calculate prediction metrics
+            current_price = price_data.iloc[-1]
+            predicted_1year = future_predictions[-1]
+            predicted_change = predicted_1year - current_price
+            predicted_change_pct = (predicted_change / current_price) * 100
+
+            # Calculate R-squared for model fit
+            residuals = y - y_pred
+            ss_res = np.sum(residuals**2)
+            ss_tot = np.sum((y - np.mean(y))**2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+            # Display prediction metrics in columns
+            pred_col1, pred_col2, pred_col3 = st.columns(3)
+
+            with pred_col1:
+                st.metric("Current Price", f"${current_price:.2f}")
+            with pred_col2:
+                st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
+                         f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
+            with pred_col3:
+                st.metric("Model R² Score", f"{r_squared:.4f}")
+
+            # Create visualization
+            st.subheader("Prediction Visualization")
+
+            # Show last 2 years of historical + 1 year prediction
+            lookback_days = min(730, len(price_data))  # 2 years or less
+            recent_data = price_data.tail(lookback_days)
+            recent_dates = recent_data.index
+
+            # Future dates
+            last_date = recent_dates[-1]
+            future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                        periods=future_days, freq='D')
+
+            # Calculate regression line for recent data
+            recent_X = np.arange(len(price_data) - lookback_days, len(price_data))
+            recent_pred = slope * recent_X + intercept
+
+            # Combine data for visualization
+            combined_dates = list(recent_dates) + list(future_dates)
+            combined_actual = list(recent_data.values) + [None] * future_days
+            combined_predicted = list(recent_pred) + list(future_predictions)
+
+            combined_df = pd.DataFrame({
+                'Historical Price': combined_actual,
+                'Predicted Trend': [None] * lookback_days + list(future_predictions)
+            }, index=combined_dates)
+
+            st.line_chart(combined_df, height=400)
+
+            # Model details in expandable section
+            with st.expander("View Model Details"):
+                st.write(f"**Regression Equation:** Price = {slope:.4f} × Days + {intercept:.2f}")
+                st.write(f"**Daily Trend:** {'Upward ↗' if slope > 0 else 'Downward ↘'} (${slope:.4f} per day)")
+                st.write(f"**Training Data Points:** {len(price_data)} days")
+                st.write(f"**Prediction Period:** {future_days} days (1 year)")
+        else:
+            st.warning("Not enough historical data for regression analysis. Need at least 30 days.")
+
         # Recent Company News
         st.divider()
         st.subheader(" Company News")
@@ -1090,31 +1177,165 @@ View Template: {portfolio_url}
     
     # Portfolio analytics
     if st.session_state.get("show_analytics", False):
-        st.subheader("📊 Portfolio Analytics")
-        
-        # Sample analytics data
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Portfolio Performance (Last 30 Days)**")
-            # Sample data for demonstration
-            performance_data = pd.DataFrame({
-                'Date': pd.date_range('2024-01-01', periods=30),
-                'Total Value': [20000 + i*100 + (i%5)*50 for i in range(30)]
-            })
-            st.line_chart(performance_data.set_index('Date'))
-        
-        with col2:
-            st.write("**Asset Allocation**")
-            allocation_data = pd.DataFrame({
-                'Asset': ['Technology', 'Healthcare', 'Finance', 'Energy', 'Consumer'],
-                'Allocation': [40, 25, 15, 10, 10]
-            })
-            st.bar_chart(allocation_data.set_index('Asset'))
-        
-        if st.button("Hide Analytics"):
-            st.session_state.show_analytics = False
-            st.rerun()
+        st.subheader("📊 Portfolio Analytics & Predictions")
+        st.caption("Linear regression analysis predicting 1 year into the future")
+
+        if not user_portfolios:
+            st.info("No portfolios available for analysis. Create a portfolio and add stocks to get started!")
+            if st.button("Hide Analytics"):
+                st.session_state.show_analytics = False
+                st.rerun()
+        else:
+            # Collect all stocks from all portfolios
+            all_stocks = []
+            for portfolio in user_portfolios:
+                for stock in portfolio.get('stocks', []):
+                    stock_info = {
+                        'symbol': stock['symbol'],
+                        'name': stock.get('name', stock['symbol']),
+                        'shares': stock.get('shares', 1),
+                        'purchase_price': stock.get('purchase_price', stock.get('price', 0)),
+                        'portfolio_name': portfolio['portfolio_name']
+                    }
+                    all_stocks.append(stock_info)
+
+            if not all_stocks:
+                st.info("No stocks in your portfolios. Add stocks to see predictions!")
+                if st.button("Hide Analytics"):
+                    st.session_state.show_analytics = False
+                    st.rerun()
+            else:
+                # Main Portfolio Value Prediction
+                st.subheader("📈 Overall Portfolio Value Prediction")
+
+                with st.spinner("Calculating portfolio predictions..."):
+                    # Calculate current and predicted portfolio values
+                    total_current_value = 0
+                    total_predicted_value = 0
+                    portfolio_predictions = []
+
+                    for stock_info in all_stocks:
+                        try:
+                            # Fetch historical data
+                            ticker = yf.Ticker(stock_info['symbol'])
+                            hist_data = ticker.history(period="2y")
+
+                            if not hist_data.empty and len(hist_data) >= 30:
+                                price_data = hist_data['Close'].dropna()
+
+                                # Regression analysis
+                                X = np.arange(len(price_data)).reshape(-1, 1)
+                                y = price_data.values
+                                coefficients = np.polyfit(X.flatten(), y, 1)
+                                slope = coefficients[0]
+                                intercept = coefficients[1]
+
+                                # Predict 365 days ahead
+                                future_days = 365
+                                future_X = len(price_data) + future_days
+                                predicted_price = slope * future_X + intercept
+
+                                current_price = price_data.iloc[-1]
+                                shares = stock_info['shares']
+
+                                # Calculate values
+                                current_stock_value = current_price * shares
+                                predicted_stock_value = predicted_price * shares
+
+                                total_current_value += current_stock_value
+                                total_predicted_value += predicted_stock_value
+
+                                portfolio_predictions.append({
+                                    'symbol': stock_info['symbol'],
+                                    'name': stock_info['name'],
+                                    'shares': shares,
+                                    'current_price': current_price,
+                                    'predicted_price': predicted_price,
+                                    'current_value': current_stock_value,
+                                    'predicted_value': predicted_stock_value,
+                                    'slope': slope,
+                                    'historical_data': price_data
+                                })
+                        except Exception as e:
+                            st.warning(f"Could not analyze {stock_info['symbol']}: {str(e)}")
+                            continue
+
+                    if portfolio_predictions:
+                        # Main portfolio metrics
+                        value_change = total_predicted_value - total_current_value
+                        value_change_pct = (value_change / total_current_value * 100) if total_current_value > 0 else 0
+
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Current Portfolio Value", f"${total_current_value:,.2f}")
+                        with col2:
+                            st.metric("Predicted Value (1 Year)", f"${total_predicted_value:,.2f}",
+                                     f"{value_change:+,.2f} ({value_change_pct:+.2f}%)")
+                        with col3:
+                            trend = "Upward 📈" if value_change > 0 else "Downward 📉"
+                            st.metric("Trend", trend)
+
+                        st.divider()
+
+                        # Individual Stock Predictions
+                        st.subheader("📊 Individual Stock Predictions")
+
+                        for pred in portfolio_predictions:
+                            with st.expander(f"{pred['symbol']} - {pred['name']}", expanded=False):
+                                # Stock metrics
+                                stock_change = pred['predicted_price'] - pred['current_price']
+                                stock_change_pct = (stock_change / pred['current_price'] * 100) if pred['current_price'] > 0 else 0
+
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Current Price", f"${pred['current_price']:.2f}")
+                                    st.caption(f"Shares: {pred['shares']}")
+                                with col2:
+                                    st.metric("Predicted Price (1 Year)", f"${pred['predicted_price']:.2f}",
+                                             f"{stock_change:+.2f} ({stock_change_pct:+.2f}%)")
+                                with col3:
+                                    st.metric("Total Value Change", f"${pred['predicted_value'] - pred['current_value']:+,.2f}")
+
+                                # Prediction graph
+                                st.write("**Price Prediction Chart**")
+
+                                # Prepare visualization data
+                                lookback_days = min(365, len(pred['historical_data']))
+                                recent_data = pred['historical_data'].tail(lookback_days)
+                                recent_dates = recent_data.index
+
+                                # Future dates
+                                last_date = recent_dates[-1]
+                                future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                                             periods=365, freq='D')
+
+                                # Calculate predictions
+                                recent_X = np.arange(len(pred['historical_data']) - lookback_days, len(pred['historical_data']))
+                                recent_pred = pred['slope'] * recent_X + pred['slope'] * 0 + pred['current_price'] - pred['slope'] * (len(pred['historical_data']) - 1)
+
+                                future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
+                                coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
+                                future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
+
+                                # Combine data
+                                combined_dates = list(recent_dates) + list(future_dates)
+                                combined_actual = list(recent_data.values) + [None] * 365
+                                combined_predicted = [None] * lookback_days + list(future_predictions)
+
+                                chart_df = pd.DataFrame({
+                                    'Historical Price': combined_actual,
+                                    'Predicted Trend': combined_predicted
+                                }, index=combined_dates)
+
+                                st.line_chart(chart_df, height=300)
+                    else:
+                        st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
+
+                st.divider()
+
+                if st.button("Hide Analytics"):
+                    st.session_state.show_analytics = False
+                    st.rerun()
 
 
 def create_portfolio_page(go_to, get_user_info, change_password):
@@ -1259,7 +1480,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
             go_to("stock_search")
         
         if st.button(" Portfolio Analytics", use_container_width=True):
-            st.info("Portfolio analytics coming soon!")
+            st.session_state.show_my_stocks_analytics = True
         
         st.divider()
         
@@ -1358,12 +1579,150 @@ def my_stocks_page(go_to, get_user_info, change_password):
     else:
         # Empty state
         st.info("No stocks added yet. Click 'Add Stock' to start building your portfolio!")
-        
+
         # Call-to-action button
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("Add Your First Stock", type="primary", use_container_width=True):
                 go_to("stock_search")
+
+    # Portfolio Analytics
+    if st.session_state.get("show_my_stocks_analytics", False):
+        st.divider()
+        st.subheader("📊 Portfolio Analytics & Predictions")
+        st.caption("Linear regression analysis predicting 1 year into the future")
+
+        if portfolio and portfolio.get('stocks'):
+            all_stocks = portfolio['stocks']
+
+            # Main Portfolio Value Prediction
+            st.subheader("📈 Overall Portfolio Value Prediction")
+
+            with st.spinner("Calculating portfolio predictions..."):
+                # Calculate current and predicted portfolio values
+                total_current_value = 0
+                total_predicted_value = 0
+                portfolio_predictions = []
+
+                for stock in all_stocks:
+                    try:
+                        # Fetch historical data
+                        ticker = yf.Ticker(stock['symbol'])
+                        hist_data = ticker.history(period="2y")
+
+                        if not hist_data.empty and len(hist_data) >= 30:
+                            price_data = hist_data['Close'].dropna()
+
+                            # Regression analysis
+                            X = np.arange(len(price_data)).reshape(-1, 1)
+                            y = price_data.values
+                            coefficients = np.polyfit(X.flatten(), y, 1)
+                            slope = coefficients[0]
+                            intercept = coefficients[1]
+
+                            # Predict 365 days ahead
+                            future_days = 365
+                            future_X = len(price_data) + future_days
+                            predicted_price = slope * future_X + intercept
+
+                            current_price = price_data.iloc[-1]
+                            shares = stock.get('shares', 1)
+
+                            # Calculate values
+                            current_stock_value = current_price * shares
+                            predicted_stock_value = predicted_price * shares
+
+                            total_current_value += current_stock_value
+                            total_predicted_value += predicted_stock_value
+
+                            portfolio_predictions.append({
+                                'symbol': stock['symbol'],
+                                'name': stock.get('name', stock['symbol']),
+                                'shares': shares,
+                                'current_price': current_price,
+                                'predicted_price': predicted_price,
+                                'current_value': current_stock_value,
+                                'predicted_value': predicted_stock_value,
+                                'slope': slope,
+                                'historical_data': price_data
+                            })
+                    except Exception as e:
+                        st.warning(f"Could not analyze {stock['symbol']}: {str(e)}")
+                        continue
+
+                if portfolio_predictions:
+                    # Main portfolio metrics
+                    value_change = total_predicted_value - total_current_value
+                    value_change_pct = (value_change / total_current_value * 100) if total_current_value > 0 else 0
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Current Portfolio Value", f"${total_current_value:,.2f}")
+                    with col2:
+                        st.metric("Predicted Value (1 Year)", f"${total_predicted_value:,.2f}",
+                                 f"{value_change:+,.2f} ({value_change_pct:+.2f}%)")
+                    with col3:
+                        trend = "Upward 📈" if value_change > 0 else "Downward 📉"
+                        st.metric("Trend", trend)
+
+                    st.divider()
+
+                    # Individual Stock Predictions
+                    st.subheader("📊 Individual Stock Predictions")
+
+                    for pred in portfolio_predictions:
+                        with st.expander(f"{pred['symbol']} - {pred['name']}", expanded=False):
+                            # Stock metrics
+                            stock_change = pred['predicted_price'] - pred['current_price']
+                            stock_change_pct = (stock_change / pred['current_price'] * 100) if pred['current_price'] > 0 else 0
+
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Current Price", f"${pred['current_price']:.2f}")
+                                st.caption(f"Shares: {pred['shares']}")
+                            with col2:
+                                st.metric("Predicted Price (1 Year)", f"${pred['predicted_price']:.2f}",
+                                         f"{stock_change:+.2f} ({stock_change_pct:+.2f}%)")
+                            with col3:
+                                st.metric("Total Value Change", f"${pred['predicted_value'] - pred['current_value']:+,.2f}")
+
+                            # Prediction graph
+                            st.write("**Price Prediction Chart**")
+
+                            # Prepare visualization data
+                            lookback_days = min(365, len(pred['historical_data']))
+                            recent_data = pred['historical_data'].tail(lookback_days)
+                            recent_dates = recent_data.index
+
+                            # Future dates
+                            last_date = recent_dates[-1]
+                            future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                                         periods=365, freq='D')
+
+                            # Calculate predictions
+                            future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
+                            coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
+                            future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
+
+                            # Combine data
+                            combined_dates = list(recent_dates) + list(future_dates)
+                            combined_actual = list(recent_data.values) + [None] * 365
+                            combined_predicted = [None] * lookback_days + list(future_predictions)
+
+                            chart_df = pd.DataFrame({
+                                'Historical Price': combined_actual,
+                                'Predicted Trend': combined_predicted
+                            }, index=combined_dates)
+
+                            st.line_chart(chart_df, height=300)
+                else:
+                    st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
+        else:
+            st.info("No stocks in your portfolio. Add stocks to see predictions!")
+
+        if st.button("Hide Analytics"):
+            st.session_state.show_my_stocks_analytics = False
+            st.rerun()
 
 
 def show_stock_historical_data(symbol, name):
@@ -1559,13 +1918,6 @@ def show_stock_historical_data(symbol, name):
                                  f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
                         st.metric("Model R² Score", f"{r_squared:.4f}")
 
-                        if r_squared < 0.3:
-                            st.warning("⚠️ Low R² score indicates high volatility. Predictions may be unreliable.")
-                        elif r_squared < 0.6:
-                            st.info("ℹ️ Moderate R² score. Use predictions with caution.")
-                        else:
-                            st.success("✓ Good model fit for trend prediction.")
-
                         st.divider()
 
                         # Create visualization dataframe
@@ -1616,10 +1968,6 @@ def show_stock_historical_data(symbol, name):
                         st.write(f"**Daily Trend:** {'Upward' if slope > 0 else 'Downward'} (${slope:.4f} per day)")
                         st.write(f"**Training Data Points:** {len(data)} days")
                         st.write(f"**Prediction Period:** {future_days} days (1 year)")
-
-                        st.info("**Note:** This is a simple linear regression model for educational purposes. "
-                               "Stock prices are highly volatile and influenced by many factors. "
-                               "This prediction should NOT be used for actual investment decisions.")
                     else:
                         st.warning("Not enough historical data for regression analysis. Need at least 30 days.")
         else:
@@ -1659,6 +2007,24 @@ def stock_search_page(go_to, get_user_info, change_password):
     # Main content
     st.title("Stock Search")
     st.markdown("### Find and add stocks to your portfolio")
+
+    # Show current portfolio info
+    if 'current_portfolio' in st.session_state:
+        portfolio_name = st.session_state.current_portfolio.get('name', 'Unknown')
+        portfolio_id = st.session_state.current_portfolio.get('_id', 'None')
+        st.info(f"📁 Adding stocks to: **{portfolio_name}**")
+
+        # Debug information
+        with st.expander("Debug Info - Click to expand"):
+            st.write("**Current Portfolio Session State:**")
+            st.json(st.session_state.current_portfolio)
+    else:
+        st.warning("⚠️ No portfolio selected. Please select a portfolio first.")
+        st.write("**Debug:** No 'current_portfolio' in session_state")
+        st.write("**Available session state keys:**", list(st.session_state.keys()))
+        if st.button("Go to Portfolios"):
+            go_to("portfolios")
+        st.stop()
     
     # Search bar
     search_query = st.text_input("Search for stocks (symbol or company name)", placeholder="e.g., AAPL, Apple, Tesla")
@@ -1719,81 +2085,85 @@ def stock_search_page(go_to, get_user_info, change_password):
                     st.write(f"{change_color} {stock['change']:+.2f}")
                 
                 with col5:
-                    # Shares input
-                    shares_key = f"shares_{stock['symbol']}"
-                    shares = st.number_input(
-                        "Shares", 
-                        min_value=1, 
-                        max_value=10000, 
-                        value=1,
-                        key=shares_key,
-                        help="Number of shares you purchased"
-                    )
-                    
-                    # Purchase price input
-                    purchase_price_key = f"purchase_price_{stock['symbol']}"
-                    purchase_price = st.number_input(
-                        "Avg. Purchase Price per Share ($)",
-                        min_value=0.01,
-                        max_value=100000.0,
-                        value=float(stock['price']),
-                        step=0.01,
-                        key=purchase_price_key,
-                        help="Enter the average price you paid per share (if you bought at different times, calculate the average)"
-                    )
-                    
-                    total_cost = purchase_price * shares
-                    st.caption(f"Total Investment: ${total_cost:.2f}")
-                    st.caption(f"Current Market Price: ${stock['price']:.2f}")
-                    
-                    if st.button("Add", key=f"add_{stock['symbol']}"):
-                        # Add stock to portfolio
-                        if 'current_portfolio' not in st.session_state:
-                            st.session_state.current_portfolio = {'stocks': []}
-                        
-                        # Check if stock already exists
-                        existing = [s for s in st.session_state.current_portfolio.get('stocks', []) 
-                                  if s['symbol'] == stock['symbol']]
-                        
-                        if existing:
-                            st.warning(f"{stock['symbol']} is already in your portfolio!")
-                        else:
-                            # Add stock with user-specified quantity and purchase price
-                            new_stock = {
-                                'symbol': stock['symbol'],
-                                'name': stock['name'],
-                                'purchase_price': purchase_price,  # User's actual purchase price
-                                'current_price': stock['price'],   # Current market price
-                                'price': purchase_price,           # Keep for backward compatibility
-                                'shares': shares,
-                                'purchase_value': total_cost       # Total amount invested
-                            }
-                            
-                            if 'stocks' not in st.session_state.current_portfolio:
-                                st.session_state.current_portfolio['stocks'] = []
-                            
-                            # Add to session state
-                            st.session_state.current_portfolio['stocks'].append(new_stock)
-                            
-                            # Save to MongoDB database
-                            from login import add_stock_to_portfolio
-                            portfolio_id = st.session_state.current_portfolio.get('_id')
-                            
-                            if portfolio_id and portfolio_id != 'temp_id':
-                                db_success, db_message = add_stock_to_portfolio(portfolio_id, new_stock)
-                                if db_success:
-                                    st.success(f"Added {shares} shares of {stock['symbol']} at ${purchase_price:.2f}/share (${total_cost:.2f} total) to your portfolio!")
-                                    st.balloons()
-                                    
-                                    # Redirect to My Portfolio (My Stocks) after balloons
-                                    import time
-                                    time.sleep(2)  # Wait for balloons animation
-                                    go_to("my_stocks")
-                                else:
-                                    st.error(f"Failed to save to database: {db_message}")
+                    # Use form to prevent reruns when changing inputs
+                    with st.form(key=f"add_form_{stock['symbol']}"):
+                        # Shares input
+                        shares = st.number_input(
+                            "Shares",
+                            min_value=1,
+                            max_value=10000,
+                            value=1,
+                            help="Number of shares you purchased"
+                        )
+
+                        # Purchase price input
+                        purchase_price = st.number_input(
+                            "Purchase Price/Share ($)",
+                            min_value=0.01,
+                            max_value=100000.0,
+                            value=float(stock['price']),
+                            step=0.01,
+                            help="Price you paid per share"
+                        )
+
+                        total_cost = purchase_price * shares
+                        st.caption(f"Total: ${total_cost:.2f}")
+                        st.caption(f"Market: ${stock['price']:.2f}")
+
+                        # Submit button for the form
+                        submitted = st.form_submit_button("Add", use_container_width=True)
+
+                        if submitted:
+                            # Add stock to portfolio
+                            if 'current_portfolio' not in st.session_state:
+                                st.session_state.current_portfolio = {'stocks': []}
+
+                            # Check if stock already exists
+                            existing = [s for s in st.session_state.current_portfolio.get('stocks', [])
+                                      if s['symbol'] == stock['symbol']]
+
+                            if existing:
+                                st.warning(f"{stock['symbol']} is already in your portfolio!")
                             else:
-                                st.error("Portfolio not found in database")
-                
+                                # Add stock with user-specified quantity and purchase price
+                                new_stock = {
+                                    'symbol': stock['symbol'],
+                                    'name': stock['name'],
+                                    'purchase_price': purchase_price,
+                                    'current_price': stock['price'],
+                                    'price': purchase_price,
+                                    'shares': shares,
+                                    'purchase_value': total_cost
+                                }
+
+                                if 'stocks' not in st.session_state.current_portfolio:
+                                    st.session_state.current_portfolio['stocks'] = []
+
+                                # Add to session state
+                                st.session_state.current_portfolio['stocks'].append(new_stock)
+
+                                # Save to MongoDB database
+                                from login import add_stock_to_portfolio
+                                portfolio_id = st.session_state.current_portfolio.get('_id')
+
+                                if portfolio_id and portfolio_id != 'temp_id':
+                                    try:
+                                        db_success, db_message = add_stock_to_portfolio(portfolio_id, new_stock)
+
+                                        if db_success:
+                                            st.success(f"✅ Successfully added {shares} shares of {stock['symbol']} at ${purchase_price:.2f}/share to your portfolio!")
+                                            st.info("You can continue adding more stocks or go to 'My Stocks' to view your portfolio.")
+                                        else:
+                                            st.error(f"Failed to save: {db_message}")
+                                            st.session_state.current_portfolio['stocks'].pop()
+                                    except Exception as e:
+                                        st.error(f"Error adding stock: {str(e)}")
+                                        st.session_state.current_portfolio['stocks'].pop()
+                                else:
+                                    st.error(f"No portfolio selected. Please select a portfolio first.")
+                                    st.info("Go back to Portfolios and click 'Edit Portfolio' or 'Add More Stocks'.")
+                                    st.session_state.current_portfolio['stocks'].pop()
+
                 with col6:
                     # Historical data button
                     if st.button("History", key=f"history_{stock['symbol']}", help="View historical data from 2000s"):
@@ -2067,9 +2437,12 @@ def portfolio_details_page(go_to, get_user_info, change_password):
             st.session_state.edit_portfolio_id = portfolio_id
             st.session_state.edit_portfolio_name = portfolio['portfolio_name']
             go_to("edit_portfolio")
-        
+
+        if st.button(" Portfolio Analytics", use_container_width=True):
+            st.session_state.show_portfolio_details_analytics = True
+
         st.divider()
-        
+
         # Navigation
         if st.button("← Back to Portfolios", use_container_width=True):
             go_to("portfolios")
@@ -2246,6 +2619,142 @@ def portfolio_details_page(go_to, get_user_info, change_password):
                         st.caption("Chart unavailable")
                     
                     st.markdown("---")
-    
+
     else:
         st.warning("No stock details available")
+
+    # Portfolio Analytics
+    if st.session_state.get("show_portfolio_details_analytics", False):
+        st.divider()
+        st.subheader("📊 Portfolio Analytics & Predictions")
+        st.caption("Linear regression analysis predicting 1 year into the future")
+
+        if stocks:
+            # Main Portfolio Value Prediction
+            st.subheader("📈 Overall Portfolio Value Prediction")
+
+            with st.spinner("Calculating portfolio predictions..."):
+                # Calculate current and predicted portfolio values
+                total_current_value = 0
+                total_predicted_value = 0
+                portfolio_predictions = []
+
+                for stock in stocks:
+                    try:
+                        # Fetch historical data
+                        ticker = yf.Ticker(stock['symbol'])
+                        hist_data = ticker.history(period="2y")
+
+                        if not hist_data.empty and len(hist_data) >= 30:
+                            price_data = hist_data['Close'].dropna()
+
+                            # Regression analysis
+                            X = np.arange(len(price_data)).reshape(-1, 1)
+                            y = price_data.values
+                            coefficients = np.polyfit(X.flatten(), y, 1)
+                            slope = coefficients[0]
+                            intercept = coefficients[1]
+
+                            # Predict 365 days ahead
+                            future_days = 365
+                            future_X = len(price_data) + future_days
+                            predicted_price = slope * future_X + intercept
+
+                            current_price = price_data.iloc[-1]
+                            shares = stock.get('shares', 1)
+
+                            # Calculate values
+                            current_stock_value = current_price * shares
+                            predicted_stock_value = predicted_price * shares
+
+                            total_current_value += current_stock_value
+                            total_predicted_value += predicted_stock_value
+
+                            portfolio_predictions.append({
+                                'symbol': stock['symbol'],
+                                'name': stock.get('name', stock['symbol']),
+                                'shares': shares,
+                                'current_price': current_price,
+                                'predicted_price': predicted_price,
+                                'current_value': current_stock_value,
+                                'predicted_value': predicted_stock_value,
+                                'slope': slope,
+                                'historical_data': price_data
+                            })
+                    except Exception as e:
+                        st.warning(f"Could not analyze {stock['symbol']}: {str(e)}")
+                        continue
+
+                if portfolio_predictions:
+                    # Main portfolio metrics
+                    value_change = total_predicted_value - total_current_value
+                    value_change_pct = (value_change / total_current_value * 100) if total_current_value > 0 else 0
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Current Portfolio Value", f"${total_current_value:,.2f}")
+                    with col2:
+                        st.metric("Predicted Value (1 Year)", f"${total_predicted_value:,.2f}",
+                                 f"{value_change:+,.2f} ({value_change_pct:+.2f}%)")
+                    with col3:
+                        trend = "Upward 📈" if value_change > 0 else "Downward 📉"
+                        st.metric("Trend", trend)
+
+                    st.divider()
+
+                    # Individual Stock Predictions
+                    st.subheader("📊 Individual Stock Predictions")
+
+                    for pred in portfolio_predictions:
+                        with st.expander(f"{pred['symbol']} - {pred['name']}", expanded=False):
+                            # Stock metrics
+                            stock_change = pred['predicted_price'] - pred['current_price']
+                            stock_change_pct = (stock_change / pred['current_price'] * 100) if pred['current_price'] > 0 else 0
+
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Current Price", f"${pred['current_price']:.2f}")
+                                st.caption(f"Shares: {pred['shares']}")
+                            with col2:
+                                st.metric("Predicted Price (1 Year)", f"${pred['predicted_price']:.2f}",
+                                         f"{stock_change:+.2f} ({stock_change_pct:+.2f}%)")
+                            with col3:
+                                st.metric("Total Value Change", f"${pred['predicted_value'] - pred['current_value']:+,.2f}")
+
+                            # Prediction graph
+                            st.write("**Price Prediction Chart**")
+
+                            # Prepare visualization data
+                            lookback_days = min(365, len(pred['historical_data']))
+                            recent_data = pred['historical_data'].tail(lookback_days)
+                            recent_dates = recent_data.index
+
+                            # Future dates
+                            last_date = recent_dates[-1]
+                            future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                                         periods=365, freq='D')
+
+                            # Calculate predictions
+                            future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
+                            coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
+                            future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
+
+                            # Combine data
+                            combined_dates = list(recent_dates) + list(future_dates)
+                            combined_actual = list(recent_data.values) + [None] * 365
+                            combined_predicted = [None] * lookback_days + list(future_predictions)
+
+                            chart_df = pd.DataFrame({
+                                'Historical Price': combined_actual,
+                                'Predicted Trend': combined_predicted
+                            }, index=combined_dates)
+
+                            st.line_chart(chart_df, height=300)
+                else:
+                    st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
+        else:
+            st.info("No stocks in your portfolio. Add stocks to see predictions!")
+
+        if st.button("Hide Analytics"):
+            st.session_state.show_portfolio_details_analytics = False
+            st.rerun()

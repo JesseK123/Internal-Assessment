@@ -276,7 +276,7 @@ def add_stock_to_portfolio(portfolio_id, stock_data):
     try:
         portfolios, error = get_collection_safely(get_portfolios_collection)
         if error:
-            return error
+            return False, error
         
         # Check if stock already exists in portfolio
         portfolio = portfolios.find_one({"_id": ObjectId(portfolio_id)})
