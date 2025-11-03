@@ -3,7 +3,7 @@ from login import (verify_user, register_user, get_user_info,
                    change_password, update_last_login, create_portfolio, 
                    get_user_portfolios, get_portfolio_by_id, update_portfolio, 
                    delete_portfolio, add_stock_to_portfolio, remove_stock_from_portfolio)
-from ui import login_page, register_page, dashboard_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page
+from ui import login_page, register_page, dashboard_page, profile_page, stock_analysis_page, portfolios_page, create_portfolio_page, my_stocks_page, stock_search_page, edit_portfolio_page, portfolio_details_page
 from database import initialize_database
 
 # Page config
@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Secure Login App", 
     layout="centered",
     initial_sidebar_state="collapsed",
-    page_icon="📊"
+    page_icon=""
 )
 
 
@@ -20,7 +20,7 @@ if "db_initialized" not in st.session_state:
     if initialize_database():
         st.session_state.db_initialized = True
     else:
-        st.error("Failed to initialize database. Please check your MongoDB connection.")
+        st.error("Failed to initialise database. Please check your MongoDB connection.")
         st.stop()
 
 # Session state initialization
@@ -73,11 +73,13 @@ def main():
     
     # Add connection status indicator
     if st.session_state.get("db_initialized"):
-        st.markdown('<div class="status-indicator">🟢 Connected</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-indicator"> Connected</div>', unsafe_allow_html=True)
     
     # Route to appropriate page
     if st.session_state.logged_in:
-        if st.session_state.page == "stock_analysis":
+        if st.session_state.page == "profile":
+            profile_page(go_to, get_user_info, change_password)
+        elif st.session_state.page == "stock_analysis":
             stock_analysis_page(go_to, get_user_info, change_password)
         elif st.session_state.page == "portfolios":
             portfolios_page(go_to, get_user_info, change_password)

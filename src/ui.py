@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import time
 import requests
 from urllib.parse import quote
@@ -1405,7 +1406,7 @@ def show_stock_historical_data(symbol, name):
                 st.divider()
                 
                 # Interactive charts
-                tab1, tab2, tab3, tab4 = st.tabs(["Price History", "Volume", "Returns", "Statistics"])
+                tab1, tab2, tab3, tab4, tab5 = st.tabs(["Price History", "Volume", "Returns", "Statistics", "Prediction"])
                 
                 with tab1:
                     st.subheader("Stock Price Over Time")
@@ -1512,6 +1513,115 @@ def show_stock_historical_data(symbol, name):
                         if info.get('longBusinessSummary'):
                             st.subheader("Business Summary")
                             st.write(info['longBusinessSummary'])
+
+                with tab5:
+                    st.subheader("Price Prediction Using Linear Regression")
+                    st.caption("Simple linear regression model trained on historical data to forecast next year")
+
+                    # Prepare data for regression
+                    # Use numerical index for X (days since start)
+                    data = historical_data['Close'].dropna()
+
+                    if len(data) >= 30:  # Need at least 30 days of data
+                        # Prepare training data
+                        X = np.arange(len(data)).reshape(-1, 1)  # Days as features
+                        y = data.values
+
+                        # Fit linear regression using numpy
+                        # y = mx + b, solve using least squares
+                        coefficients = np.polyfit(X.flatten(), y, 1)
+                        slope = coefficients[0]
+                        intercept = coefficients[1]
+
+                        # Make predictions for historical data (for visualization)
+                        y_pred = slope * X.flatten() + intercept
+
+                        # Predict next 365 days
+                        future_days = 365
+                        future_X = np.arange(len(data), len(data) + future_days).reshape(-1, 1)
+                        future_predictions = slope * future_X.flatten() + intercept
+
+                        # Calculate prediction metrics
+                        current_price = data.iloc[-1]
+                        predicted_1year = future_predictions[-1]
+                        predicted_change = predicted_1year - current_price
+                        predicted_change_pct = (predicted_change / current_price) * 100
+
+                        # Calculate R-squared for model fit
+                        residuals = y - y_pred
+                        ss_res = np.sum(residuals**2)
+                        ss_tot = np.sum((y - np.mean(y))**2)
+                        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+                        # Display prediction metrics
+                        st.metric("Current Price", f"${current_price:.2f}")
+                        st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
+                                 f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
+                        st.metric("Model R² Score", f"{r_squared:.4f}")
+
+                        if r_squared < 0.3:
+                            st.warning("⚠️ Low R² score indicates high volatility. Predictions may be unreliable.")
+                        elif r_squared < 0.6:
+                            st.info("ℹ️ Moderate R² score. Use predictions with caution.")
+                        else:
+                            st.success("✓ Good model fit for trend prediction.")
+
+                        st.divider()
+
+                        # Create visualization dataframe
+                        # Historical data with regression line
+                        historical_dates = data.index
+
+                        # Future dates (assuming trading days)
+                        last_date = historical_dates[-1]
+                        future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                                     periods=future_days, freq='D')
+
+                        # Combine historical and predicted data for visualization
+                        st.subheader("Historical Data with Regression Line")
+
+                        # Create dataframe for plotting
+                        historical_chart_data = pd.DataFrame({
+                            'Actual Price': data.values,
+                            'Regression Line': y_pred
+                        }, index=historical_dates)
+
+                        st.line_chart(historical_chart_data, height=400)
+
+                        st.subheader("Future Price Prediction (Next Year)")
+
+                        # Show last 2 years of historical + 1 year prediction
+                        lookback_days = min(504, len(data))  # 2 years or less
+                        recent_data = data.tail(lookback_days)
+                        recent_dates = recent_data.index
+                        recent_X = np.arange(len(data) - lookback_days, len(data))
+                        recent_pred = slope * recent_X + intercept
+
+                        # Combine recent historical with predictions
+                        combined_dates = list(recent_dates) + list(future_dates)
+                        combined_actual = list(recent_data.values) + [None] * future_days
+                        combined_predicted = list(recent_pred) + list(future_predictions)
+
+                        combined_df = pd.DataFrame({
+                            'Historical Price': combined_actual,
+                            'Predicted Price': [None] * lookback_days + list(future_predictions)
+                        }, index=combined_dates)
+
+                        st.line_chart(combined_df, height=400)
+
+                        # Additional information
+                        st.divider()
+                        st.subheader("Model Details")
+                        st.write(f"**Regression Equation:** Price = {slope:.4f} × Days + {intercept:.2f}")
+                        st.write(f"**Daily Trend:** {'Upward' if slope > 0 else 'Downward'} (${slope:.4f} per day)")
+                        st.write(f"**Training Data Points:** {len(data)} days")
+                        st.write(f"**Prediction Period:** {future_days} days (1 year)")
+
+                        st.info("**Note:** This is a simple linear regression model for educational purposes. "
+                               "Stock prices are highly volatile and influenced by many factors. "
+                               "This prediction should NOT be used for actual investment decisions.")
+                    else:
+                        st.warning("Not enough historical data for regression analysis. Need at least 30 days.")
         else:
             st.error(f"No historical data available for {symbol}")
             st.info("This stock may not have been trading since 2000, or there may be an issue fetching the data.")
