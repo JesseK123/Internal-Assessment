@@ -8,8 +8,8 @@ from database import initialize_database
 
 # Page config
 st.set_page_config(
-    page_title="Secure Login App", 
-    layout="centered",
+    page_title="Secure Login App",
+    layout="wide",
     initial_sidebar_state="collapsed",
     page_icon=""
 )
