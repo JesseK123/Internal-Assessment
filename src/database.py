@@ -29,7 +29,7 @@ class DatabaseConfig:
         
         if not uri:
             st.error(
-                "⚠️ MongoDB connection string not found. Please set one of: MONGO_URI, MONGODB_URI, DATABASE_URL, MONGODB_CONNECTION_STRING, or DB_URI environment variable."
+                "MongoDB connection string not found. Please set one of: MONGO_URI, MONGODB_URI, DATABASE_URL, MONGODB_CONNECTION_STRING, or DB_URI environment variable."
             )
             return None
 
