@@ -14,7 +14,6 @@ st.set_page_config(
     page_icon=""
 )
 
-
 # Initialize database on first run
 if "db_initialized" not in st.session_state:
     if initialize_database():

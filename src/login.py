@@ -14,8 +14,6 @@ def get_collection_safely(collection_getter):
     return collection, None
 
 
-
-
 def verify_user(username, password):
     """Verify user credentials"""
     try:
@@ -43,8 +41,6 @@ def user_exists(username):
     except Exception as e:
         st.error(f"Database error: {str(e)}")
         return True  # Fail safe
-
-
 
 
 def validate_email(email):

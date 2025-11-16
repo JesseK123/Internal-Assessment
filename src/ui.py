@@ -7,6 +7,69 @@ import time
 import requests
 from urllib.parse import quote
 import re
+from login import (
+    get_user_portfolios, get_all_portfolios, get_portfolio_by_id,
+    create_portfolio, update_portfolio, delete_portfolio,
+    add_stock_to_portfolio, remove_stock_from_portfolio
+)
+
+def handle_logout():
+    """Handle user logout - clears session and redirects to login"""
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.page = "login"
+    st.rerun()
+
+def calculate_stock_prediction(price_data, future_days=365):
+    """Calculate linear regression prediction for stock prices.
+
+    Args:
+        price_data: pandas Series of historical prices
+        future_days: number of days to predict into the future (default 365)
+
+    Returns:
+        dict with slope, intercept, predicted_price, y_pred (historical fit),
+        future_predictions, and current_price. Returns None if insufficient data.
+    """
+    if len(price_data) < 30:
+        return None
+
+    X = np.arange(len(price_data)).reshape(-1, 1)
+    y = price_data.values
+
+    coefficients = np.polyfit(X.flatten(), y, 1)
+    slope = coefficients[0]
+    intercept = coefficients[1]
+
+    y_pred = slope * X.flatten() + intercept
+
+    future_X = np.arange(len(price_data), len(price_data) + future_days).reshape(-1, 1)
+    future_predictions = slope * future_X.flatten() + intercept
+
+    return {
+        'slope': slope,
+        'intercept': intercept,
+        'predicted_price': future_predictions[-1],
+        'y_pred': y_pred,
+        'future_predictions': future_predictions,
+        'current_price': price_data.iloc[-1]
+    }
+
+def calculate_portfolio_value(stocks):
+    """Calculate total portfolio value from stocks list.
+
+    Args:
+        stocks: list of stock dicts with 'purchase_price' or 'price' and 'shares' keys
+
+    Returns:
+        float total value of the portfolio
+    """
+    total_value = 0
+    for stock in stocks:
+        purchase_price = stock.get('purchase_price', stock.get('price', 0))
+        shares = stock.get('shares', 1)
+        total_value += purchase_price * shares
+    return total_value
 
 def format_percentage_with_color(percentage):
     """Format percentage with color coding - green for positive, red for negative"""
@@ -33,7 +96,6 @@ def show_delete_confirmation_popup():
     with col_confirm:
         if st.button("Yes, Delete", type="primary", use_container_width=True):
             try:
-                from login import delete_portfolio
                 success, message = delete_portfolio(portfolio_id, st.session_state.username)
                 
                 if success:
@@ -341,10 +403,7 @@ def dashboard_page(go_to, get_user_info, change_password):
             go_to("portfolios")
         
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
         
         st.divider()
         
@@ -376,9 +435,8 @@ def dashboard_page(go_to, get_user_info, change_password):
 
     # Quick Actions Section at the top
     st.subheader("Quick Actions")
-    
+
     # Get user portfolios to determine what actions to show
-    from login import get_user_portfolios
     user_portfolios = get_user_portfolios(st.session_state.username)
     
     if user_portfolios:
@@ -528,8 +586,6 @@ def dashboard_page(go_to, get_user_info, change_password):
     # Media Section - View all users' portfolios
     st.subheader("Community Portfolios")
     st.caption("Explore Portfolios from Other Users")
-
-    from login import get_all_portfolios
 
     all_portfolios = get_all_portfolios()
 
@@ -821,10 +877,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             go_to("portfolios")
         
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
     
     # Main analysis content
     st.title(f"{selected_stock} - Detailed Analysis")
@@ -1104,20 +1157,16 @@ def portfolios_page(go_to, get_user_info, change_password):
             go_to("stock_analysis")
         
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
     
     # Main portfolio content
     st.title("Portfolio Management")
     
     # Summary section
     st.header("Summary")
-    
+
     # Fetch portfolios from database
-    from login import get_user_portfolios
-    
+
     user_portfolios = get_user_portfolios(st.session_state.username)
     
     # Convert database portfolios to display format
@@ -1508,10 +1557,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
             go_to("dashboard")
         
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
     
     # Main content
     st.title("Create New Portfolio")
@@ -1562,8 +1608,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
     if submitted:
         if portfolio_name and selected_countries:
             # Create portfolio in database
-            from login import create_portfolio
-            
+
             portfolio_data = {
                 'name': portfolio_name,
                 'countries': selected_countries,
@@ -1583,9 +1628,8 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 st.write(f"**Countries:** {', '.join(selected_countries)}")
                 
                 st.info("Your portfolio has been created! You can now add stocks and track your investments.")
-                
+
                 # Get the created portfolio from database to get the real ID
-                from login import get_user_portfolios
                 user_portfolios = get_user_portfolios(st.session_state.username)
                 
                 # Find the newly created portfolio (most recent)
@@ -1648,10 +1692,7 @@ def my_stocks_page(go_to, get_user_info, change_password):
             go_to("dashboard")
         
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
     
     # Main content
     st.title("My Portfolio")
@@ -1661,7 +1702,6 @@ def my_stocks_page(go_to, get_user_info, change_password):
     if 'current_portfolio' in st.session_state:
         portfolio_id = st.session_state.current_portfolio.get('_id')
         if portfolio_id and portfolio_id != 'temp_id':
-            from login import get_portfolio_by_id
             portfolio = get_portfolio_by_id(portfolio_id)
         
         if not portfolio:
@@ -1718,7 +1758,6 @@ def my_stocks_page(go_to, get_user_info, change_password):
                         # Remove from database
                         portfolio_id = st.session_state.current_portfolio.get('_id')
                         if portfolio_id and portfolio_id != 'temp_id':
-                            from login import remove_stock_from_portfolio
                             success, message = remove_stock_from_portfolio(portfolio_id, stock['symbol'])
                             if success:
                                 st.success(f"Removed {stock['symbol']} from portfolio")
@@ -2289,7 +2328,6 @@ def stock_search_page(go_to, get_user_info, change_password):
                                 st.session_state.current_portfolio['stocks'].append(new_stock)
 
                                 # Save to MongoDB database
-                                from login import add_stock_to_portfolio
                                 portfolio_id = st.session_state.current_portfolio.get('_id')
 
                                 if portfolio_id and portfolio_id != 'temp_id':
@@ -2332,10 +2370,9 @@ def edit_portfolio_page(go_to, get_user_info, change_password):
         st.error("No portfolio selected for editing")
         go_to("portfolios")
         return
-    
+
     # Get portfolio data from database
-    from login import get_portfolio_by_id, update_portfolio, remove_stock_from_portfolio
-    
+
     portfolio_id = st.session_state.edit_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
     
@@ -2556,8 +2593,6 @@ def portfolio_details_page(go_to, get_user_info, change_password):
         return
     
     # Get portfolio data from database
-    from login import get_portfolio_by_id
-    
     portfolio_id = st.session_state.view_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
     
@@ -2923,18 +2958,13 @@ def portfolio_analytics_page(go_to, get_user_info, change_password):
             go_to("dashboard")
 
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
 
     # Main content
     st.title("Portfolio Analytics & Predictions")
     st.caption("Linear regression analysis predicting 1 year into the future")
 
     # Get portfolios from database
-    from login import get_user_portfolios, get_portfolio_by_id
-
     # Check if we're analyzing a specific portfolio or all portfolios
     if 'analytics_portfolio_id' in st.session_state:
         # Analyzing specific portfolio
@@ -3105,8 +3135,6 @@ def media_portfolio_view_page(go_to, get_user_info, change_password):
         return
 
     # Get portfolio data from database
-    from login import get_portfolio_by_id
-
     portfolio_id = st.session_state.media_portfolio_id
     portfolio = get_portfolio_by_id(portfolio_id)
 
@@ -3132,10 +3160,7 @@ def media_portfolio_view_page(go_to, get_user_info, change_password):
             go_to("dashboard")
 
         if st.button("Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.page = "login"
-            st.rerun()
+            handle_logout()
 
     # Main content
     st.title(f"{owner_username}'s Portfolio")
@@ -3181,15 +3206,6 @@ def media_portfolio_view_page(go_to, get_user_info, change_password):
     # Portfolio overview metrics
     total_gain_loss = current_total_value - total_purchase_value
     total_gain_loss_pct = (total_gain_loss / total_purchase_value * 100) if total_purchase_value > 0 else 0
-
-    def format_percentage_with_color(percentage):
-        """Format percentage with color"""
-        if percentage > 0:
-            return f'<span class="positive-percentage">+{percentage:.2f}%</span>'
-        elif percentage < 0:
-            return f'<span class="negative-percentage">{percentage:.2f}%</span>'
-        else:
-            return f'<span class="neutral-percentage">{percentage:.2f}%</span>'
 
     col1, col2, col3 = st.columns(3)
     with col1:
