@@ -409,8 +409,7 @@ def dashboard_page(go_to, get_user_info, change_password):
         
         # Quick stats
         st.subheader("Quick Info")
-        st.caption("Market data updated in real-time")
-        st.caption("Auto-refresh every 5 minutes")
+        st.caption("This is just a mathematical prediction, DON'T TRUST ME 100%")
     
     # Main dashboard title
     st.title("Dashboard")
