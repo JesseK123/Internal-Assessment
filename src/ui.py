@@ -4,9 +4,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
-import requests
 from urllib.parse import quote
-import re
 from login import (
     get_user_portfolios, get_all_portfolios, get_portfolio_by_id,
     create_portfolio, update_portfolio, delete_portfolio,
@@ -23,13 +21,16 @@ def handle_logout():
 def calculate_stock_prediction(price_data, future_days=365):
     """Calculate linear regression prediction for stock prices.
 
+    This centralized function eliminates code duplication across the application.
+
     Args:
         price_data: pandas Series of historical prices
         future_days: number of days to predict into the future (default 365)
 
     Returns:
         dict with slope, intercept, predicted_price, y_pred (historical fit),
-        future_predictions, and current_price. Returns None if insufficient data.
+        future_predictions, future_X, r_squared, and current_price.
+        Returns None if insufficient data.
     """
     if len(price_data) < 30:
         return None
@@ -37,14 +38,23 @@ def calculate_stock_prediction(price_data, future_days=365):
     X = np.arange(len(price_data)).reshape(-1, 1)
     y = price_data.values
 
+    # Linear regression using numpy polyfit
     coefficients = np.polyfit(X.flatten(), y, 1)
     slope = coefficients[0]
     intercept = coefficients[1]
 
+    # Historical predictions
     y_pred = slope * X.flatten() + intercept
 
-    future_X = np.arange(len(price_data), len(price_data) + future_days).reshape(-1, 1)
-    future_predictions = slope * future_X.flatten() + intercept
+    # Future predictions
+    future_X = np.arange(len(price_data), len(price_data) + future_days)
+    future_predictions = slope * future_X + intercept
+
+    # Calculate R-squared for model quality assessment
+    residuals = y - y_pred
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y - np.mean(y))**2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
 
     return {
         'slope': slope,
@@ -52,6 +62,8 @@ def calculate_stock_prediction(price_data, future_days=365):
         'predicted_price': future_predictions[-1],
         'y_pred': y_pred,
         'future_predictions': future_predictions,
+        'future_X': future_X,
+        'r_squared': r_squared,
         'current_price': price_data.iloc[-1]
     }
 
@@ -103,7 +115,6 @@ def show_delete_confirmation_popup():
                     # Clear session state
                     del st.session_state.confirm_delete_portfolio
                     del st.session_state.confirm_delete_name
-                    time.sleep(2)  # Show success message briefly
                     st.rerun()
                 else:
                     st.error(f"Failed to delete portfolio: {message}")
@@ -126,7 +137,7 @@ def get_company_news_link(symbol):
             ticker = yf.Ticker(symbol)
             info = ticker.info
             company_name = info.get('longName', symbol)
-        except:
+        except Exception:
             company_name = symbol
         
         # Create Google News search URL with company name and stock symbol
@@ -145,35 +156,47 @@ def get_company_news_link(symbol):
         st.error(f"Error generating news link: {str(e)}")
         return None
 
-# Stock symbols by country
+# Stock symbols by country - Centralized definition used throughout the app
 STOCK_SYMBOLS_BY_COUNTRY = {
     "United States": [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
         "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
-        "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC"
+        "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
+        "NFLX", "CRM", "XOM", "LLY", "ABT", "ORCL", "ACN", "NVS", "CMCSA", "DIS",
+        "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
+        "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
     ],
     "United Kingdom": [
-        "SHEL.L", "AZN.L", "BP.L", "ULVR.L", "HSBA.L", "VOD.L", "RIO.L", "LLOY.L",
-        "BT-A.L", "GSK.L", "BARC.L", "NG.L", "DGE.L", "REL.L", "RB.L", "PRU.L",
-        "NWG.L", "CRH.L", "IAG.L", "GLEN.L", "LSEG.L", "III.L", "BA.L", "RTO.L",
-        "CPG.L", "ENT.L", "EXPN.L", "FRES.L", "RR.L", "SSE.L"
+        "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
+        "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
+        "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
+        "ADM.L", "ANTO.L", "AUTO.L", "AV.L", "BA.L", "BNZL.L", "BRBY.L", "CCL.L", "CPG.L", "CRDS.L",
+        "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
+        "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
     ],
     "Australia": [
-        "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WES.AX", "FMG.AX",
-        "WOW.AX", "RIO.AX", "MQG.AX", "TLS.AX", "WDS.AX", "GMG.AX", "COL.AX", "STO.AX",
-        "REA.AX", "QBE.AX", "TCL.AX", "ALL.AX", "XRO.AX", "JHX.AX", "MIN.AX", "RHC.AX",
-        "WTC.AX", "SHL.AX", "NCM.AX", "IAG.AX", "S32.AX", "ASX.AX"
+        "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
+        "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
+        "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
+        "BRG.AX", "BSL.AX", "BWP.AX", "CAR.AX", "CCP.AX", "CHC.AX", "CPU.AX", "CTX.AX", "CWN.AX", "DMP.AX",
+        "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
+        "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
     ],
     "Hong Kong": [
-        "0700.HK", "0388.HK", "0005.HK", "0941.HK", "1299.HK", "2318.HK", "0003.HK", "0939.HK",
-        "1398.HK", "2628.HK", "0883.HK", "0175.HK", "0011.HK", "0016.HK", "0267.HK", "1972.HK",
-        "0288.HK", "0002.HK", "0001.HK", "1113.HK", "0006.HK", "1997.HK", "0101.HK", "0012.HK",
-        "0017.HK", "0004.HK", "0868.HK", "1109.HK", "0823.HK", "1038.HK"
+        "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
+        "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
+        "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
+        "0291.HK", "0293.HK", "0322.HK", "0386.HK", "0390.HK", "0392.HK", "0688.HK", "0762.HK", "0823.HK", "0857.HK",
+        "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
+        "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
     ],
     "China": [
-        "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "XPEV", "LI", "NTES", "IQ",
-        "YMM", "DIDI", "TME", "VIPS", "WB", "ZTO", "BGNE", "EDU", "TAL", "YY",
-        "HUYA", "DOYU", "KC", "GOTU", "RLX", "DADA", "TUYA", "BZUN", "TIGR", "FUTU"
+        "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
+        "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
+        "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
+        "STO", "BEST", "QFIN", "LKNCY", "ZLAB", "CAAS", "CBPO", "CANG", "CAN", "CARS",
+        "CADC", "CXDC", "DQ", "EH", "FENG", "GSMG", "HEAR", "HCM", "HIMX", "HUIZ",
+        "JOBS", "LAIX", "LX", "NAAS", "NIU", "QTT", "RERE", "SOHU", "TOUR", "WDH"
     ]
 }
 
@@ -522,25 +545,24 @@ def dashboard_page(go_to, get_user_info, change_password):
                             if not hist_data.empty and len(hist_data) >= 30:
                                 price_data = hist_data['Close'].dropna()
 
-                                # Regression analysis
-                                X = np.arange(len(price_data))
-                                y = price_data.values
-                                coefficients = np.polyfit(X, y, 1)
-                                slope = coefficients[0]
-                                intercept = coefficients[1]
+                                # Use centralized prediction function
+                                prediction = calculate_stock_prediction(price_data, future_days=365)
 
-                                # Predict 365 days ahead
-                                future_X = len(price_data) + 365
-                                predicted_price = slope * future_X + intercept
-
-                                shares = stock.get('shares', 1)
-                                predicted_value += predicted_price * shares
+                                if prediction:
+                                    predicted_price = prediction['predicted_price']
+                                    shares = stock.get('shares', 1)
+                                    predicted_value += predicted_price * shares
+                                else:
+                                    # Fallback to current price
+                                    current_price = stock.get('price', 0)
+                                    shares = stock.get('shares', 1)
+                                    predicted_value += current_price * shares
                             else:
                                 # If no sufficient data, use current price as prediction
                                 current_price = stock.get('price', 0)
                                 shares = stock.get('shares', 1)
                                 predicted_value += current_price * shares
-                        except:
+                        except Exception as e:
                             # If prediction fails, use current price
                             current_price = stock.get('price', 0)
                             shares = stock.get('shares', 1)
@@ -618,25 +640,25 @@ def dashboard_page(go_to, get_user_info, change_password):
 
                                 if len(hist) >= 30:
                                     price_data = hist['Close'].dropna()
-                                    X = np.arange(len(price_data)).reshape(-1, 1)
-                                    y = price_data.values
 
-                                    coefficients = np.polyfit(X.flatten(), y, 1)
-                                    slope = coefficients[0]
-                                    intercept = coefficients[1]
+                                    # Use centralized prediction function
+                                    prediction = calculate_stock_prediction(price_data, future_days=365)
 
-                                    # Predict 365 days ahead
-                                    future_X = len(price_data) + 365
-                                    predicted_price = slope * future_X + intercept
-
-                                    shares = stock.get('shares', 1)
-                                    predicted_value += predicted_price * shares
+                                    if prediction:
+                                        predicted_price = prediction['predicted_price']
+                                        shares = stock.get('shares', 1)
+                                        predicted_value += predicted_price * shares
+                                    else:
+                                        # Fallback to current price
+                                        current_price = stock.get('price', 0)
+                                        shares = stock.get('shares', 1)
+                                        predicted_value += current_price * shares
                                 else:
                                     # If no sufficient data, use current price as prediction
                                     current_price = stock.get('price', 0)
                                     shares = stock.get('shares', 1)
                                     predicted_value += current_price * shares
-                            except:
+                            except Exception as e:
                                 # If prediction fails, use current price
                                 current_price = stock.get('price', 0)
                                 shares = stock.get('shares', 1)
@@ -692,56 +714,12 @@ def dashboard_page(go_to, get_user_info, change_password):
 
     # Stock Market Summary Section
     st.subheader("Global Stock Market Dashboard")
-    
-    # Stock symbols organized by country
-    stock_data_by_country = {
-        "United States": [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "UNH", "JNJ",
-            "V", "WMT", "JPM", "PG", "MA", "HD", "CVX", "ABBV", "PFE", "KO",
-            "AVGO", "PEP", "COST", "TMO", "DHR", "MRK", "VZ", "ADBE", "WFC", "BAC",
-            "NFLX", "CRM", "XOM", "LLY", "ABT", "ORCL", "ACN", "NVS", "CMCSA", "DIS",
-            "CSCO", "TXN", "MDT", "PM", "QCOM", "HON", "RTX", "UPS", "LOW", "NKE",
-            "INTC", "AMGN", "SPGI", "INTU", "CAT", "GS", "IBM", "SBUX", "AMD", "T"
-        ],
-        "United Kingdom": [
-            "LLOY.L", "BP.L", "SHEL.L", "AZN.L", "ULVR.L", "VODGBP", "LSEG.L", "RIO.L", "HSBA.L", "GSK.L",
-            "BARC.L", "NG.L", "DGE.L", "BT-A.L", "REL.L", "GLEN.L", "AAL.L", "NWG.L", "STAN.L", "PRU.L",
-            "SSE.L", "CNA.L", "FLTR.L", "IAG.L", "RB.L", "CRDA.L", "INF.L", "LAND.L", "IMB.L", "III.L",
-            "ADM.L", "ANTO.L", "AUTO.L", "AV.L", "BA.L", "BNZL.L", "BRBY.L", "CCL.L", "CPG.L", "CRDS.L",
-            "EXPN.L", "FRAS.L", "HLMA.L", "IHG.L", "JET.L", "KGF.L", "LGEN.L", "MNG.L", "OCDO.L", "PSH.L",
-            "RTO.L", "SGRO.L", "SMDS.L", "SPX.L", "TW.L", "UU.L", "VOD.L", "WTB.L", "3IN.L", "ABDN.L"
-        ],
-        "Australia": [
-            "CBA.AX", "BHP.AX", "CSL.AX", "WBC.AX", "ANZ.AX", "NAB.AX", "WOW.AX", "FMG.AX", "MQG.AX", "WES.AX",
-            "TLS.AX", "RIO.AX", "TCL.AX", "GMG.AX", "STO.AX", "QBE.AX", "ASX.AX", "COL.AX", "JHX.AX", "REA.AX",
-            "AMP.AX", "ALL.AX", "APT.AX", "ASP.AX", "AWC.AX", "BEN.AX", "BKL.AX", "BLD.AX", "BOQ.AX", "BPT.AX",
-            "BRG.AX", "BSL.AX", "BWP.AX", "CAR.AX", "CCP.AX", "CHC.AX", "CPU.AX", "CTX.AX", "CWN.AX", "DMP.AX",
-            "DXS.AX", "ELD.AX", "EVN.AX", "FLT.AX", "GOR.AX", "GPT.AX", "HVN.AX", "IAG.AX", "IEL.AX", "IGO.AX",
-            "ILU.AX", "IPL.AX", "JBH.AX", "LLC.AX", "MGR.AX", "MIN.AX", "NEC.AX", "NHF.AX", "NST.AX", "ORA.AX"
-        ],
-        "Hong Kong": [
-            "0700.HK", "0941.HK", "0388.HK", "0005.HK", "1299.HK", "2318.HK", "0939.HK", "3690.HK", "0883.HK", "1398.HK",
-            "2388.HK", "0267.HK", "0175.HK", "0002.HK", "0011.HK", "0016.HK", "0027.HK", "1109.HK", "0006.HK", "0001.HK",
-            "0012.HK", "0017.HK", "0019.HK", "0023.HK", "0066.HK", "0083.HK", "0101.HK", "0144.HK", "0151.HK", "0200.HK",
-            "0291.HK", "0293.HK", "0322.HK", "0386.HK", "0390.HK", "0392.HK", "0688.HK", "0762.HK", "0823.HK", "0857.HK",
-            "0868.HK", "0881.HK", "0914.HK", "0916.HK", "0960.HK", "0968.HK", "0992.HK", "1044.HK", "1072.HK", "1093.HK",
-            "1113.HK", "1171.HK", "1177.HK", "1211.HK", "1288.HK", "1336.HK", "1378.HK", "1816.HK", "1880.HK", "1928.HK"
-        ],
-        "China": [
-            "BABA", "JD", "BIDU", "NIO", "PDD", "BILI", "TME", "IQ", "NTES", "VIPS",
-            "YMM", "LI", "XPEV", "EDU", "TAL", "WB", "DOYU", "KC", "TUYA", "DADA",
-            "YSG", "TIGR", "FUTU", "RLX", "GOTU", "MOMO", "HUYA", "DOCU", "ZTO", "YTO",
-            "STO", "BEST", "QFIN", "LKNCY", "ZLAB", "CAAS", "CBPO", "CANG", "CAN", "CARS",
-            "CADC", "CXDC", "DQ", "EH", "FENG", "GSMG", "HEAR", "HCM", "HIMX", "HUIZ",
-            "JOBS", "LAIX", "LX", "NAAS", "NIU", "QTT", "RERE", "SOHU", "TOUR", "WDH"
-        ]
-    }
-    
+
     # Fetch data for all countries (using 1-year period)
     days = 365  # 1 year
     all_countries_data = {}
-    
-    for country, symbols in stock_data_by_country.items():
+
+    for country, symbols in STOCK_SYMBOLS_BY_COUNTRY.items():
         # Only take first 6 stocks for dashboard display
         top_symbols = symbols[:6]
         country_data = get_multiple_stocks_data(top_symbols, days)
@@ -859,8 +837,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         
         # Time range - Fixed for detailed analysis
         st.info("**Analysis Period:** 10 Years (3,650 days)")
-        days = 90  # Keep for any remaining sidebar functionality
-        
+
         # Analysis options
         st.subheader("Analysis Tools")
         show_volume = st.checkbox("Show Volume", value=True)
@@ -909,7 +886,7 @@ def stock_analysis_page(go_to, get_user_info, change_password):
             try:
                 volume = int(float(latest['Volume']))
                 st.metric("Volume", f"{volume:,}")
-            except:
+            except Exception:
                 st.metric("Volume", "N/A")
         
         st.divider()
@@ -998,81 +975,63 @@ def stock_analysis_page(go_to, get_user_info, change_password):
         price_data = data['Close'].dropna()
 
         if len(price_data) >= 30:  # Need at least 30 days of data
-            # Prepare training data
-            X = np.arange(len(price_data)).reshape(-1, 1)  # Days as features
-            y = price_data.values
+            # Use centralized prediction function
+            prediction = calculate_stock_prediction(price_data, future_days=365)
 
-            # Fit linear regression using numpy
-            coefficients = np.polyfit(X.flatten(), y, 1)
-            slope = coefficients[0]
-            intercept = coefficients[1]
+            if prediction:
+                current_price = prediction['current_price']
+                predicted_1year = prediction['predicted_price']
+                predicted_change = predicted_1year - current_price
+                predicted_change_pct = (predicted_change / current_price) * 100
 
-            # Make predictions for historical data
-            y_pred = slope * X.flatten() + intercept
+                # Display prediction metrics in columns
+                pred_col1, pred_col2, pred_col3 = st.columns(3)
 
-            # Predict next 365 days
-            future_days = 365
-            future_X = np.arange(len(price_data), len(price_data) + future_days).reshape(-1, 1)
-            future_predictions = slope * future_X.flatten() + intercept
+                with pred_col1:
+                    st.metric("Current Price", f"${current_price:.2f}")
+                with pred_col2:
+                    st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
+                             f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
+                with pred_col3:
+                    st.metric("Model R² Score", f"{prediction['r_squared']:.4f}")
 
-            # Calculate prediction metrics
-            current_price = price_data.iloc[-1]
-            predicted_1year = future_predictions[-1]
-            predicted_change = predicted_1year - current_price
-            predicted_change_pct = (predicted_change / current_price) * 100
+                # Create visualization
+                st.subheader("Prediction Visualization")
 
-            # Calculate R-squared for model fit
-            residuals = y - y_pred
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((y - np.mean(y))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+                # Show last 2 years of historical + 1 year prediction
+                lookback_days = min(730, len(price_data))  # 2 years or less
+                recent_data = price_data.tail(lookback_days)
+                recent_dates = recent_data.index
 
-            # Display prediction metrics in columns
-            pred_col1, pred_col2, pred_col3 = st.columns(3)
+                # Future dates
+                last_date = recent_dates[-1]
+                future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                            periods=365, freq='D')
 
-            with pred_col1:
-                st.metric("Current Price", f"${current_price:.2f}")
-            with pred_col2:
-                st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
-                         f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
-            with pred_col3:
-                st.metric("Model R² Score", f"{r_squared:.4f}")
+                # Calculate regression line for recent data
+                recent_X = np.arange(len(price_data) - lookback_days, len(price_data))
+                recent_pred = prediction['slope'] * recent_X + prediction['intercept']
 
-            # Create visualization
-            st.subheader("Prediction Visualization")
+                # Combine data for visualization
+                combined_dates = list(recent_dates) + list(future_dates)
+                combined_actual = list(recent_data.values) + [None] * 365
+                combined_predicted = list(recent_pred) + list(prediction['future_predictions'])
 
-            # Show last 2 years of historical + 1 year prediction
-            lookback_days = min(730, len(price_data))  # 2 years or less
-            recent_data = price_data.tail(lookback_days)
-            recent_dates = recent_data.index
+                combined_df = pd.DataFrame({
+                    'Historical Price': combined_actual,
+                    'Predicted Trend': [None] * lookback_days + list(prediction['future_predictions'])
+                }, index=combined_dates)
 
-            # Future dates
-            last_date = recent_dates[-1]
-            future_dates = pd.date_range(start=last_date + timedelta(days=1),
-                                        periods=future_days, freq='D')
+                st.line_chart(combined_df, height=400)
 
-            # Calculate regression line for recent data
-            recent_X = np.arange(len(price_data) - lookback_days, len(price_data))
-            recent_pred = slope * recent_X + intercept
-
-            # Combine data for visualization
-            combined_dates = list(recent_dates) + list(future_dates)
-            combined_actual = list(recent_data.values) + [None] * future_days
-            combined_predicted = list(recent_pred) + list(future_predictions)
-
-            combined_df = pd.DataFrame({
-                'Historical Price': combined_actual,
-                'Predicted Trend': [None] * lookback_days + list(future_predictions)
-            }, index=combined_dates)
-
-            st.line_chart(combined_df, height=400)
-
-            # Model details in expandable section
-            with st.expander("View Model Details"):
-                st.write(f"**Regression Equation:** Price = {slope:.4f} × Days + {intercept:.2f}")
-                st.write(f"**Daily Trend:** {'Upward ↗' if slope > 0 else 'Downward ↘'} (${slope:.4f} per day)")
-                st.write(f"**Training Data Points:** {len(price_data)} days")
-                st.write(f"**Prediction Period:** {future_days} days (1 year)")
+                # Model details in expandable section
+                with st.expander("View Model Details"):
+                    st.write(f"**Regression Equation:** Price = {prediction['slope']:.4f} × Days + {prediction['intercept']:.2f}")
+                    st.write(f"**Daily Trend:** {'Upward ↗' if prediction['slope'] > 0 else 'Downward ↘'} (${prediction['slope']:.4f} per day)")
+                    st.write(f"**Training Data Points:** {len(price_data)} days")
+                    st.write(f"**Prediction Period:** 365 days (1 year)")
+            else:
+                st.warning("Unable to generate prediction with available data.")
         else:
             st.warning("Not enough historical data for regression analysis. Need at least 30 days.")
 
@@ -1215,20 +1174,8 @@ def portfolios_page(go_to, get_user_info, change_password):
     st.header("My Portfolios")
     
     if sample_portfolios:
-        # Bubble sort portfolios by value (highest first)
-        def bubble_sort_portfolios_by_value(portfolios):
-            """Sort portfolios by value using bubble sort (highest to lowest)"""
-            n = len(portfolios)
-            for i in range(n):
-                for j in range(0, n - i - 1):
-                    # Compare adjacent portfolios by value (descending order)
-                    if portfolios[j]['value'] < portfolios[j + 1]['value']:
-                        # Swap portfolios
-                        portfolios[j], portfolios[j + 1] = portfolios[j + 1], portfolios[j]
-            return portfolios
-        
-        # Sort portfolios by value (highest first)
-        sorted_portfolios = bubble_sort_portfolios_by_value(sample_portfolios.copy())
+        # Sort portfolios by value (highest first) using efficient built-in sorting
+        sorted_portfolios = sorted(sample_portfolios, key=lambda p: p['value'], reverse=True)
         
         # Portfolio cards
         for portfolio in sorted_portfolios:
@@ -1424,39 +1371,31 @@ View Template: {portfolio_url}
                         if not hist_data.empty and len(hist_data) >= 30:
                             price_data = hist_data['Close'].dropna()
 
-                            # Regression analysis
-                            X = np.arange(len(price_data)).reshape(-1, 1)
-                            y = price_data.values
-                            coefficients = np.polyfit(X.flatten(), y, 1)
-                            slope = coefficients[0]
-                            intercept = coefficients[1]
+                            # Use centralized prediction function
+                            prediction = calculate_stock_prediction(price_data, future_days=365)
 
-                            # Predict 365 days ahead
-                            future_days = 365
-                            future_X = len(price_data) + future_days
-                            predicted_price = slope * future_X + intercept
+                            if prediction:
+                                current_price = prediction['current_price']
+                                predicted_price = prediction['predicted_price']
+                                shares = stock_info['shares']
 
-                            current_price = price_data.iloc[-1]
-                            shares = stock_info['shares']
+                                # Calculate values
+                                current_stock_value = current_price * shares
+                                predicted_stock_value = predicted_price * shares
 
-                            # Calculate values
-                            current_stock_value = current_price * shares
-                            predicted_stock_value = predicted_price * shares
+                                total_current_value += current_stock_value
+                                total_predicted_value += predicted_stock_value
 
-                            total_current_value += current_stock_value
-                            total_predicted_value += predicted_stock_value
-
-                            portfolio_predictions.append({
-                                'symbol': stock_info['symbol'],
-                                'name': stock_info['name'],
-                                'shares': shares,
-                                'current_price': current_price,
-                                'predicted_price': predicted_price,
-                                'current_value': current_stock_value,
-                                'predicted_value': predicted_stock_value,
-                                'slope': slope,
-                                'historical_data': price_data
-                            })
+                                portfolio_predictions.append({
+                                    'symbol': stock_info['symbol'],
+                                    'name': stock_info['name'],
+                                    'shares': shares,
+                                    'current_price': current_price,
+                                    'predicted_price': predicted_price,
+                                    'current_value': current_stock_value,
+                                    'predicted_value': predicted_stock_value,
+                                    'prediction': prediction
+                                })
                     except Exception as e:
                         st.warning(f"Could not analyze {stock_info['symbol']}: {str(e)}")
                         continue
@@ -1499,36 +1438,13 @@ View Template: {portfolio_url}
 
                             # Prediction graph
                             st.write("**Price Prediction Chart**")
+                            st.caption("Last 365 days of history + 365 days prediction")
 
-                            # Prepare visualization data
-                            lookback_days = min(365, len(pred['historical_data']))
-                            recent_data = pred['historical_data'].tail(lookback_days)
-                            recent_dates = recent_data.index
-
-                            # Future dates
-                            last_date = recent_dates[-1]
-                            future_dates = pd.date_range(start=last_date + timedelta(days=1),
-                                                         periods=365, freq='D')
-
-                            # Calculate predictions
-                            recent_X = np.arange(len(pred['historical_data']) - lookback_days, len(pred['historical_data']))
-                            recent_pred = pred['slope'] * recent_X + pred['slope'] * 0 + pred['current_price'] - pred['slope'] * (len(pred['historical_data']) - 1)
-
-                            future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
-                            coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
-                            future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
-
-                            # Combine data
-                            combined_dates = list(recent_dates) + list(future_dates)
-                            combined_actual = list(recent_data.values) + [None] * 365
-                            combined_predicted = [None] * lookback_days + list(future_predictions)
-
-                            chart_df = pd.DataFrame({
-                                'Historical Price': combined_actual,
-                                'Predicted Trend': combined_predicted
-                            }, index=combined_dates)
-
-                            st.line_chart(chart_df, height=300)
+                            # Use prediction data from centralized function
+                            if 'prediction' in pred:
+                                st.line_chart(pd.DataFrame({
+                                    'Predicted Price': pred['prediction']['future_predictions']
+                                }), height=300)
                 else:
                     st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
 
@@ -1630,7 +1546,7 @@ def create_portfolio_page(go_to, get_user_info, change_password):
 
                 # Get the created portfolio from database to get the real ID
                 user_portfolios = get_user_portfolios(st.session_state.username)
-                
+
                 # Find the newly created portfolio (most recent)
                 if user_portfolios:
                     latest_portfolio = user_portfolios[0]  # Sorted by created_at desc
@@ -1639,10 +1555,8 @@ def create_portfolio_page(go_to, get_user_info, change_password):
                 else:
                     st.session_state.current_portfolio = portfolio_data
                     st.session_state.current_portfolio['_id'] = 'temp_id'
-                
+
                 # Auto redirect to my stocks page
-                import time
-                time.sleep(2)
                 go_to("my_stocks")
             else:
                 st.error(f"{message}")
@@ -1806,39 +1720,31 @@ def my_stocks_page(go_to, get_user_info, change_password):
                     if not hist_data.empty and len(hist_data) >= 30:
                         price_data = hist_data['Close'].dropna()
 
-                        # Regression analysis
-                        X = np.arange(len(price_data)).reshape(-1, 1)
-                        y = price_data.values
-                        coefficients = np.polyfit(X.flatten(), y, 1)
-                        slope = coefficients[0]
-                        intercept = coefficients[1]
+                        # Use centralized prediction function
+                        prediction = calculate_stock_prediction(price_data, future_days=365)
 
-                        # Predict 365 days ahead
-                        future_days = 365
-                        future_X = len(price_data) + future_days
-                        predicted_price = slope * future_X + intercept
+                        if prediction:
+                            current_price = prediction['current_price']
+                            predicted_price = prediction['predicted_price']
+                            shares = stock.get('shares', 1)
 
-                        current_price = price_data.iloc[-1]
-                        shares = stock.get('shares', 1)
+                            # Calculate values
+                            current_stock_value = current_price * shares
+                            predicted_stock_value = predicted_price * shares
 
-                        # Calculate values
-                        current_stock_value = current_price * shares
-                        predicted_stock_value = predicted_price * shares
+                            total_current_value += current_stock_value
+                            total_predicted_value += predicted_stock_value
 
-                        total_current_value += current_stock_value
-                        total_predicted_value += predicted_stock_value
-
-                        portfolio_predictions.append({
-                            'symbol': stock['symbol'],
-                            'name': stock.get('name', stock['symbol']),
-                            'shares': shares,
-                            'current_price': current_price,
-                            'predicted_price': predicted_price,
-                            'current_value': current_stock_value,
-                            'predicted_value': predicted_stock_value,
-                            'slope': slope,
-                            'historical_data': price_data
-                        })
+                            portfolio_predictions.append({
+                                'symbol': stock['symbol'],
+                                'name': stock.get('name', stock['symbol']),
+                                'shares': shares,
+                                'current_price': current_price,
+                                'predicted_price': predicted_price,
+                                'current_value': current_stock_value,
+                                'predicted_value': predicted_stock_value,
+                                'prediction': prediction
+                            })
                 except Exception as e:
                     st.warning(f"Could not analyze {stock['symbol']}: {str(e)}")
                     continue
@@ -1881,33 +1787,13 @@ def my_stocks_page(go_to, get_user_info, change_password):
 
                         # Prediction graph
                         st.write("**Price Prediction Chart**")
+                        st.caption("365-day forward prediction")
 
-                        # Prepare visualization data
-                        lookback_days = min(365, len(pred['historical_data']))
-                        recent_data = pred['historical_data'].tail(lookback_days)
-                        recent_dates = recent_data.index
-
-                        # Future dates
-                        last_date = recent_dates[-1]
-                        future_dates = pd.date_range(start=last_date + timedelta(days=1),
-                                                     periods=365, freq='D')
-
-                        # Calculate predictions
-                        future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
-                        coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
-                        future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
-
-                        # Combine data
-                        combined_dates = list(recent_dates) + list(future_dates)
-                        combined_actual = list(recent_data.values) + [None] * 365
-                        combined_predicted = [None] * lookback_days + list(future_predictions)
-
-                        chart_df = pd.DataFrame({
-                            'Historical Price': combined_actual,
-                            'Predicted Trend': combined_predicted
-                        }, index=combined_dates)
-
-                        st.line_chart(chart_df, height=300)
+                        # Use prediction data from centralized function
+                        if 'prediction' in pred:
+                            st.line_chart(pd.DataFrame({
+                                'Predicted Price': pred['prediction']['future_predictions']
+                            }), height=300)
             else:
                 st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
         else:
@@ -2074,92 +1960,71 @@ def show_stock_historical_data(symbol, name):
                 data = historical_data['Close'].dropna()
 
                 if len(data) >= 30:  # Need at least 30 days of data
-                    # Prepare training data
-                    X = np.arange(len(data)).reshape(-1, 1)  # Days as features
-                    y = data.values
+                    # Use centralized prediction function
+                    prediction = calculate_stock_prediction(data, future_days=365)
 
-                    # Fit linear regression using numpy
-                    # y = mx + b, solve using least squares
-                    coefficients = np.polyfit(X.flatten(), y, 1)
-                    slope = coefficients[0]
-                    intercept = coefficients[1]
+                    if prediction:
+                        current_price = prediction['current_price']
+                        predicted_1year = prediction['predicted_price']
+                        predicted_change = predicted_1year - current_price
+                        predicted_change_pct = (predicted_change / current_price) * 100
 
-                    # Make predictions for historical data (for visualization)
-                    y_pred = slope * X.flatten() + intercept
+                        # Display prediction metrics
+                        st.metric("Current Price", f"${current_price:.2f}")
+                        st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
+                                 f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
+                        st.metric("Model R² Score", f"{prediction['r_squared']:.4f}")
 
-                    # Predict next 365 days
-                    future_days = 365
-                    future_X = np.arange(len(data), len(data) + future_days).reshape(-1, 1)
-                    future_predictions = slope * future_X.flatten() + intercept
+                        st.divider()
 
-                    # Calculate prediction metrics
-                    current_price = data.iloc[-1]
-                    predicted_1year = future_predictions[-1]
-                    predicted_change = predicted_1year - current_price
-                    predicted_change_pct = (predicted_change / current_price) * 100
+                        # Create visualization dataframe
+                        # Historical data with regression line
+                        historical_dates = data.index
 
-                    # Calculate R-squared for model fit
-                    residuals = y - y_pred
-                    ss_res = np.sum(residuals**2)
-                    ss_tot = np.sum((y - np.mean(y))**2)
-                    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+                        # Future dates (assuming trading days)
+                        last_date = historical_dates[-1]
+                        future_dates = pd.date_range(start=last_date + timedelta(days=1),
+                                                     periods=365, freq='D')
 
-                    # Display prediction metrics
-                    st.metric("Current Price", f"${current_price:.2f}")
-                    st.metric("Predicted Price (1 Year)", f"${predicted_1year:.2f}",
-                             f"{predicted_change:+.2f} ({predicted_change_pct:+.2f}%)")
-                    st.metric("Model R² Score", f"{r_squared:.4f}")
+                        # Combine historical and predicted data for visualization
+                        st.subheader("Historical Data with Regression Line")
 
-                    st.divider()
+                        # Create dataframe for plotting
+                        historical_chart_data = pd.DataFrame({
+                            'Actual Price': data.values,
+                            'Regression Line': prediction['y_pred']
+                        }, index=historical_dates)
 
-                    # Create visualization dataframe
-                    # Historical data with regression line
-                    historical_dates = data.index
+                        st.line_chart(historical_chart_data, height=400)
 
-                    # Future dates (assuming trading days)
-                    last_date = historical_dates[-1]
-                    future_dates = pd.date_range(start=last_date + timedelta(days=1),
-                                                 periods=future_days, freq='D')
+                        st.subheader("Future Price Prediction (Next Year)")
 
-                    # Combine historical and predicted data for visualization
-                    st.subheader("Historical Data with Regression Line")
+                        # Show last 2 years of historical + 1 year prediction
+                        lookback_days = min(504, len(data))  # 2 years or less
+                        recent_data = data.tail(lookback_days)
+                        recent_dates = recent_data.index
+                        recent_X = np.arange(len(data) - lookback_days, len(data))
+                        recent_pred = prediction['slope'] * recent_X + prediction['intercept']
 
-                    # Create dataframe for plotting
-                    historical_chart_data = pd.DataFrame({
-                        'Actual Price': data.values,
-                        'Regression Line': y_pred
-                    }, index=historical_dates)
+                        # Combine recent historical with predictions
+                        combined_dates = list(recent_dates) + list(future_dates)
+                        combined_actual = list(recent_data.values) + [None] * 365
+                        combined_predicted = list(recent_pred) + list(prediction['future_predictions'])
 
-                    st.line_chart(historical_chart_data, height=400)
+                        combined_df = pd.DataFrame({
+                            'Historical Price': combined_actual,
+                            'Predicted Price': [None] * lookback_days + list(prediction['future_predictions'])
+                        }, index=combined_dates)
 
-                    st.subheader("Future Price Prediction (Next Year)")
+                        st.line_chart(combined_df, height=400)
 
-                    # Show last 2 years of historical + 1 year prediction
-                    lookback_days = min(504, len(data))  # 2 years or less
-                    recent_data = data.tail(lookback_days)
-                    recent_dates = recent_data.index
-                    recent_X = np.arange(len(data) - lookback_days, len(data))
-                    recent_pred = slope * recent_X + intercept
-
-                    # Combine recent historical with predictions
-                    combined_dates = list(recent_dates) + list(future_dates)
-                    combined_actual = list(recent_data.values) + [None] * future_days
-                    combined_predicted = list(recent_pred) + list(future_predictions)
-
-                    combined_df = pd.DataFrame({
-                        'Historical Price': combined_actual,
-                        'Predicted Price': [None] * lookback_days + list(future_predictions)
-                    }, index=combined_dates)
-
-                    st.line_chart(combined_df, height=400)
-
-                    # Additional information
-                    st.divider()
-                    st.subheader("Model Details")
-                    st.write(f"**Regression Equation:** Price = {slope:.4f} × Days + {intercept:.2f}")
-                    st.write(f"**Daily Trend:** {'Upward' if slope > 0 else 'Downward'} (${slope:.4f} per day)")
-                    st.write(f"**Training Data Points:** {len(data)} days")
-                    st.write(f"**Prediction Period:** {future_days} days (1 year)")
+                        # Additional information
+                        st.divider()
+                        st.subheader("Model Details")
+                        st.write(f"**Regression Equation:** Price = {prediction['slope']:.4f} × Days + {prediction['intercept']:.2f}")
+                        st.write(f"**Daily Trend:** {'Upward' if prediction['slope'] > 0 else 'Downward'} (${prediction['slope']:.4f} per day)")
+                        st.write(f"**Training Data Points:** {len(data)} days")
+                        st.write(f"**Prediction Period:** 365 days (1 year)")
                 else:
                     st.warning("Not enough historical data for regression analysis. Need at least 30 days.")
     else:
@@ -2667,7 +2532,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
             if not current_data.empty:
                 current_price = float(current_data['Close'].iloc[-1])
                 current_stock_data[stock['symbol']] = current_price
-        except:
+        except Exception:
             # If real-time data fails, try to use stored current_price, otherwise mark as unavailable
             stored_current = stock.get('current_price')
             if stored_current:
@@ -2796,7 +2661,7 @@ def portfolio_details_page(go_to, get_user_info, change_password):
                         if not hist_data.empty:
                             st.line_chart(hist_data['Close'], height=200)
                             st.caption("Last 30 days")
-                    except:
+                    except Exception:
                         st.caption("Chart unavailable")
                     
                     st.markdown("---")
@@ -2903,33 +2768,13 @@ def portfolio_details_page(go_to, get_user_info, change_password):
 
                         # Prediction graph
                         st.write("**Price Prediction Chart**")
+                        st.caption("365-day forward prediction")
 
-                        # Prepare visualization data
-                        lookback_days = min(365, len(pred['historical_data']))
-                        recent_data = pred['historical_data'].tail(lookback_days)
-                        recent_dates = recent_data.index
-
-                        # Future dates
-                        last_date = recent_dates[-1]
-                        future_dates = pd.date_range(start=last_date + timedelta(days=1),
-                                                     periods=365, freq='D')
-
-                        # Calculate predictions
-                        future_X = np.arange(len(pred['historical_data']), len(pred['historical_data']) + 365)
-                        coefficients_full = np.polyfit(np.arange(len(pred['historical_data'])), pred['historical_data'].values, 1)
-                        future_predictions = coefficients_full[0] * future_X + coefficients_full[1]
-
-                        # Combine data
-                        combined_dates = list(recent_dates) + list(future_dates)
-                        combined_actual = list(recent_data.values) + [None] * 365
-                        combined_predicted = [None] * lookback_days + list(future_predictions)
-
-                        chart_df = pd.DataFrame({
-                            'Historical Price': combined_actual,
-                            'Predicted Trend': combined_predicted
-                        }, index=combined_dates)
-
-                        st.line_chart(chart_df, height=300)
+                        # Use prediction data from centralized function
+                        if 'prediction' in pred:
+                            st.line_chart(pd.DataFrame({
+                                'Predicted Price': pred['prediction']['future_predictions']
+                            }), height=300)
             else:
                 st.warning("Could not generate predictions. Make sure your stocks have sufficient historical data.")
         else:
@@ -3188,7 +3033,7 @@ def media_portfolio_view_page(go_to, get_user_info, change_password):
             if not current_data.empty:
                 current_price = float(current_data['Close'].iloc[-1])
                 current_stock_data[stock['symbol']] = current_price
-        except:
+        except Exception:
             stored_current = stock.get('current_price')
             if stored_current:
                 current_stock_data[stock['symbol']] = stored_current
@@ -3302,7 +3147,7 @@ def media_portfolio_view_page(go_to, get_user_info, change_password):
                         if not hist_data.empty:
                             st.line_chart(hist_data['Close'], height=200)
                             st.caption("Last 30 days")
-                    except:
+                    except Exception:
                         st.caption("Chart unavailable")
 
                     st.markdown("---")
